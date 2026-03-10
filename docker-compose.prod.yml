@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: aiproject-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: aiproject
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - aiproject-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 3s
+      retries: 10
+
+  # Spring Boot后端应用
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: aiproject-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/aiproject?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - aiproject-network
+
+  # Vue 3前端应用
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: aiproject-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - aiproject-network
+
+volumes:
+  mysql_data:
+
+networks:
+  aiproject-network:
+    driver: bridge

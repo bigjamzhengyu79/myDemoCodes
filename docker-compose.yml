@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: aiproject-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: aiproject
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - aiproject-network
+
+  # PostgreSQL 可选配置
+  postgres:
+    image: postgres:15
+    container_name: aiproject-postgres
+    environment:
+      POSTGRES_DB: aiproject
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - aiproject-network
+    profiles:
+      - postgres
+
+volumes:
+  mysql_data:
+  postgres_data:
+
+networks:
+  aiproject-network:
+    driver: bridge
