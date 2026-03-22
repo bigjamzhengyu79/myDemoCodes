@@ -1,0 +1,27 @@
+-- SQL脚本：创建math_goals表
+
+CREATE TABLE IF NOT EXISTS math_goals (
+    id BIGSERIAL PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    description VARCHAR(500),
+    category VARCHAR(50) NOT NULL,
+    target_date DATE,
+    progress INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(20) NOT NULL DEFAULT '进行中',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 创建索引以提高查询性能
+CREATE INDEX idx_math_goals_status ON math_goals(status);
+CREATE INDEX idx_math_goals_category ON math_goals(category);
+CREATE INDEX idx_math_goals_created_at ON math_goals(created_at);
+
+-- 示例数据（可选）
+INSERT INTO math_goals (title, description, category, target_date, progress, status)
+VALUES 
+    ('掌握微积分基础', '学习导数、积分和极限的基本概念', '微积分', '2026-06-30', 45, '进行中'),
+    ('平面几何证明技巧', '掌握常见的平面几何证明方法和技巧', '几何', '2026-05-31', 60, '进行中'),
+    ('线性代数入门', '理解向量、矩阵和线性变换的基本概念', '代数', '2026-07-31', 30, '进行中'),
+    ('概率论基础', '学习基本的概率分布和统计推断', '概率', '2026-08-31', 25, '进行中'),
+    ('完成高等数学第一章', '完成教科书的第一章所有练习题', '其他', '2026-04-30', 100, '已完成');

@@ -5,6 +5,9 @@
       <ul class="nav-links">
         <li><router-link to="/">首页</router-link></li>
         <li><router-link to="/users">用户管理</router-link></li>
+        <li><router-link to="/math-goals">📚 数学目标</router-link></li>
+        <li><router-link to="/assignments">✏️ 作业系统</router-link></li>
+        <li><router-link to="/login">登录</router-link></li>
       </ul>
     </nav>
     <main class="main-content">
