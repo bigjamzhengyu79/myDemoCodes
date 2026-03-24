@@ -19,6 +19,7 @@ public class QuestionDto {
         private String answerKey;
         private String source;
         private Long parentId;
+        private String imageUrlsJson;          // JSON array of base64 data URLs
         private List<OptionReq> options;
         private List<StepReq> solutionSteps;
         private Set<Long> knowledgeTagIds;
@@ -50,6 +51,7 @@ public class QuestionDto {
         private String answerKey;
         private String source;
         private Long parentId;
+        private String imageUrlsJson;
         private String createdByName;
         private LocalDateTime createdAt;
         private List<OptionResp> options;
@@ -67,6 +69,7 @@ public class QuestionDto {
             r.answerKey = q.getAnswerKey();
             r.source = q.getSource();
             r.parentId = q.getParentId();
+            r.imageUrlsJson = q.getImageUrlsJson();
             r.createdByName = q.getCreatedBy() != null ? q.getCreatedBy().getRealName() : null;
             r.createdAt = q.getCreatedAt();
             r.options = q.getOptions().stream().map(OptionResp::from).collect(Collectors.toList());

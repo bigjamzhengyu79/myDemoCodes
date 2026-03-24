@@ -43,6 +43,23 @@
           <!-- Stem -->
           <div class="q-stem" v-html="renderLatex(q.contentLatex)"></div>
 
+          <!-- 题目配图 -->
+          <div v-if="parseImages(q.imageUrlsJson).length" class="q-images">
+            <img v-for="(src, i) in parseImages(q.imageUrlsJson)" :key="i"
+                 :src="src" :alt="`图${i+1}`" class="q-image"
+                 @click="lightbox = { src, label: `图 ${i+1}` }" />
+          </div>
+
+          <!-- Lightbox -->
+          <div v-if="lightbox" class="q-lightbox-mask" @click="lightbox = null">
+            <div style="text-align:center" @click.stop>
+              <img :src="lightbox.src" style="max-width:90vw;max-height:82vh;border-radius:8px" />
+              <div style="margin-top:10px">
+                <button class="btn" @click="lightbox = null">关闭</button>
+              </div>
+            </div>
+          </div>
+
           <!-- Already reviewed result -->
           <div v-if="getAnswer(q.id)?.status === 'REVIEWED'" class="result-box">
             <div class="flex gap-2 mb-1">
@@ -135,6 +152,12 @@ const answers = ref([])
 const drafts = ref({})
 const submitting = ref({})
 const loading = ref(true)
+const lightbox = ref(null)
+
+function parseImages(json) {
+  if (!json) return []
+  try { return JSON.parse(json) } catch { return [] }
+}
 
 const answeredCount = computed(() => {
   if (!assignment.value) return 0
@@ -231,4 +254,8 @@ onMounted(async () => {
 .submitted-answer { background: var(--c-surface2); border-radius: var(--radius-sm); padding: 12px; margin-top: 8px; }
 .pending-badge { margin-top: 8px; font-size: 12px; color: var(--c-warning); }
 .done-banner { background: var(--c-success-bg); border-color: var(--c-success); text-align: center; padding: 24px; margin-top: 8px; }
+.q-images { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.q-image { max-width: 240px; max-height: 180px; object-fit: contain; border: 1px solid var(--c-border); border-radius: var(--radius-sm); cursor: zoom-in; transition: opacity .12s; }
+.q-image:hover { opacity: .85; }
+.q-lightbox-mask { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: flex; align-items: center; justify-content: center; z-index: 200; }
 </style>
