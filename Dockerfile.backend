@@ -1,5 +1,5 @@
 # 多阶段构建：编译阶段
-FROM maven:3.9 AS builder
+FROM maven:3.9-amazoncorretto-17 AS builder
 
 WORKDIR /app
 
