@@ -46,6 +46,7 @@ public class QuestionService {
         q.setAnswerKey(req.getAnswerKey());
         q.setSource(req.getSource());
         q.setParentId(req.getParentId());
+        q.setImageUrlsJson(req.getImageUrlsJson());
         q.setCreatedBy(creator);
 
         // 知识点标签
@@ -97,6 +98,7 @@ public class QuestionService {
         if (req.getTotalScore() != null) q.setTotalScore(req.getTotalScore());
         if (req.getAnswerKey() != null) q.setAnswerKey(req.getAnswerKey());
         if (req.getSource() != null) q.setSource(req.getSource());
+        if (req.getImageUrlsJson() != null) q.setImageUrlsJson(req.getImageUrlsJson());
         return QuestionDto.Response.from(questionRepository.save(q));
     }
 
