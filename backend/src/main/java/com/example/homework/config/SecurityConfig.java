@@ -46,6 +46,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/math-goals/**").permitAll()
                 .requestMatchers("/api/assignments/**").permitAll()
                 .requestMatchers("/api/questions/**").permitAll()
+                .requestMatchers("/auth/login", "/auth/register").permitAll() // ← 放行登录
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtFilter(), UsernamePasswordAuthenticationFilter.class);
