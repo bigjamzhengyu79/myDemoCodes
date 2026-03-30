@@ -3,7 +3,8 @@ import { useAuthStore } from '@/store/auth'
 
 console.log('API BASE URL:', import.meta.env.VITE_API_BASE_URL)
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,  // ✅ 读取环境变量
+  baseURL: import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL + '/api' : '/api',  // ✅ 读取环境变量
+  //baseURL: '/api',  // ✅ 读取环境变量
   timeout: 10000
 })
 

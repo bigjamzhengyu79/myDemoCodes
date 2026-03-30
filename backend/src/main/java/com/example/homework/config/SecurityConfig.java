@@ -46,7 +46,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/math-goals/**").permitAll()
                 .requestMatchers("/api/assignments/**").permitAll()
                 .requestMatchers("/api/questions/**").permitAll()
-                .requestMatchers("/auth/login", "/auth/register").permitAll() // ← 放行登录
+                .requestMatchers("/auth/**").permitAll() // ← 放行登录
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtFilter(), UsernamePasswordAuthenticationFilter.class);
@@ -86,7 +86,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("https://*.mydemocodes.pages.dev"));
+            config.setAllowedOriginPatterns(List.of(
+            "https://*.mydemocodes.pages.dev",  // Cloudflare 生产环境
+            "http://localhost:*",               // ← 本地开发
+            "http://127.0.0.1:*"               // ← 本地开发备用
+         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
