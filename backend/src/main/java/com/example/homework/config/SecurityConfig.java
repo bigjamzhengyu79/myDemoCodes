@@ -87,6 +87,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
             config.setAllowedOriginPatterns(List.of(
+            "https://mydemocodes.pages.dev",     // ← 加入根域名
             "https://*.mydemocodes.pages.dev",  // Cloudflare 生产环境
             "http://localhost:*",               // ← 本地开发
             "http://127.0.0.1:*"               // ← 本地开发备用
