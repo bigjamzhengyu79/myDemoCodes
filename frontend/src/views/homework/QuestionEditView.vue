@@ -20,14 +20,18 @@
         <div class="card mb-2">
           <div class="editor-section-title">题干</div>
 
-          <!-- LaTeX 编辑 + 预览 -->
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+          <!-- LaTeX 编辑 -->
+          <div style="display:grid;gap:12px;margin-bottom:14px">
             <div>
               <label class="form-label">LaTeX 源码</label>
               <textarea id="stem-input" v-model="form.contentLatex" class="form-control latex-mono"
                         rows="6" placeholder="输入题干，用 $..$ 包裹公式"
                         @paste="onTextareaPaste"></textarea>
             </div>
+          </div>
+
+          <!-- LaTeX 预览 -->
+          <div style="display:grid;gap:12px;margin-bottom:14px">
             <div>
               <label class="form-label">预览</label>
               <div class="preview-box" v-html="renderLatexWithImages(form.contentLatex, form.imageUrls)"></div>
