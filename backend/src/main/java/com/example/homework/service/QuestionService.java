@@ -99,6 +99,36 @@ public class QuestionService {
         if (req.getAnswerKey() != null) q.setAnswerKey(req.getAnswerKey());
         if (req.getSource() != null) q.setSource(req.getSource());
         if (req.getImageUrlsJson() != null) q.setImageUrlsJson(req.getImageUrlsJson());
+ 
+        // 选项更新：清空旧选项，重新写入
+        if (req.getOptions() != null) {
+            q.getOptions().clear();
+            List<QuestionOption> opts = req.getOptions().stream().map(o -> {
+                QuestionOption opt = new QuestionOption();
+                opt.setQuestion(q);
+                opt.setOptionLabel(o.getOptionLabel());
+                opt.setContentLatex(o.getContentLatex());
+                opt.setIsCorrect(Boolean.TRUE.equals(o.getIsCorrect()));
+                return opt;
+            }).collect(Collectors.toList());
+            q.getOptions().addAll(opts);
+        }
+ 
+        // 解析步骤更新：清空旧步骤，重新写入
+        if (req.getSolutionSteps() != null) {
+            q.getSolutionSteps().clear();
+            List<SolutionStep> steps = req.getSolutionSteps().stream().map(s -> {
+                SolutionStep step = new SolutionStep();
+                step.setQuestion(q);
+                step.setStepOrder(s.getStepOrder());
+                step.setContentLatex(s.getContentLatex());
+                step.setStepScore(s.getStepScore() != null ? s.getStepScore() : 0);
+                step.setCommonErrors(s.getCommonErrors());
+                return step;
+            }).collect(Collectors.toList());
+            q.getSolutionSteps().addAll(steps);
+        }
+ 
         return QuestionDto.Response.from(questionRepository.save(q));
     }
 
