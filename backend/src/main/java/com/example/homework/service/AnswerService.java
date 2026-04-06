@@ -34,7 +34,14 @@ public class AnswerService {
         answer.setAnswerContent(req.getAnswerContent());
         answer.setImageUrl(req.getImageUrl());
         answer.setSubmittedAt(LocalDateTime.now());
-        autoGrade(answer, question, req.getAnswerContent());
+        if (Boolean.TRUE.equals(req.getSaveOnly())) {
+            answer.setStatus(StudentAnswer.Status.DRAFT);
+            answer.setScore(null);
+            answer.setAutoScore(null);
+            answer.setFeedback(null);
+        } else {
+            autoGrade(answer, question, req.getAnswerContent());
+        }
         return AnswerDto.Response.from(answerRepository.save(answer));
     }
 

@@ -58,6 +58,6 @@ public class StudentAnswer {
     @JoinColumn(name = "reviewer_id")
     private User reviewer;
 
-    public enum Status { SUBMITTED, AUTO_GRADED, REVIEWED }
+    public enum Status { DRAFT, SUBMITTED, AUTO_GRADED, REVIEWED }
     public enum ErrorType { CONCEPT, CALC, READING, NONE }
 }

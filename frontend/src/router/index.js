@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import UserList from '../views/UserList.vue'
 import MathGoals from '../views/MathGoals.vue'
+import UnitTestView from '../views/UnitTestView.vue'
 import LoginView from '../views/homework/LoginView.vue'
 import LayoutView from '../views/homework/LayoutView.vue'
 import AssignmentListView from '../views/homework/AssignmentListView.vue'
@@ -16,6 +17,7 @@ const routes = [
   { path: '/', component: Home },
   { path: '/users', component: UserList },
   { path: '/math-goals', component: MathGoals },
+  { path: '/unit-test', component: UnitTestView },
   { path: '/login', component: LoginView },
   {
     path: '/',

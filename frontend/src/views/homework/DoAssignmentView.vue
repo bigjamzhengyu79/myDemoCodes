@@ -9,6 +9,7 @@
           <h1 style="font-size:18px;font-weight:600">{{ assignment.title }}</h1>
           <div class="text-muted text-sm" style="margin-top:2px">
             共 {{ assignment.questions.length }} 题 · 截止 {{ fmtDate(assignment.dueTime) }}
+            <span class="status-badge">{{ assignmentStatusLabel }}</span>
           </div>
         </div>
         <div class="progress-summary">
@@ -98,28 +99,44 @@
             <div class="flex gap-2" style="margin-top:8px">
               <input v-model="drafts[q.id]" class="form-control"
                      placeholder="输入答案（如：10 或 3/2）"
-                     :disabled="!!getAnswer(q.id)"
+                     :disabled="getAnswer(q.id) && getAnswer(q.id).status !== 'DRAFT'"
                      @keyup.enter="submitAnswer(q.id)" />
-              <button v-if="!getAnswer(q.id)" class="btn btn-primary"
+              <button v-if="!getAnswer(q.id) || getAnswer(q.id).status === 'DRAFT'" class="btn btn-primary"
+                      @click="saveAnswer(q.id)" :disabled="submitting[q.id]">
+                <span v-if="submitting[q.id]" class="spinner" style="width:12px;height:12px"></span>
+                保存
+              </button>
+              <button v-if="!getAnswer(q.id) || getAnswer(q.id).status === 'DRAFT'" class="btn btn-primary"
                       @click="submitAnswer(q.id)" :disabled="submitting[q.id]">
                 <span v-if="submitting[q.id]" class="spinner" style="width:12px;height:12px"></span>
                 提交
               </button>
             </div>
+            <div v-if="getAnswer(q.id)?.status === 'DRAFT'" class="text-sm text-muted" style="margin-top:6px">已保存草稿，可继续编辑后提交</div>
           </template>
 
           <!-- OPEN_ENDED -->
           <template v-else>
-            <div v-if="!getAnswer(q.id)">
-              <textarea v-model="drafts[q.id]" class="form-control"
-                        rows="5" placeholder="在此输入解题过程（支持LaTeX，如：$f'(x) = ...$）"></textarea>
+            <div v-if="!getAnswer(q.id) || getAnswer(q.id).status === 'DRAFT'">
+              <LatexEditor v-model:content-latex="drafts[q.id]" 
+                           class="form-control" 
+                           rows="5" 
+                           :placeholder="`在此输入解题过程（支持LaTeX，如：$f'(x) = ...$）`"
+                           :showImageUpload="false" 
+              />
               <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+                <button v-if="!getAnswer(q.id) || getAnswer(q.id).status === 'DRAFT'" class="btn btn-primary"
+                        @click="saveAnswer(q.id)" :disabled="submitting[q.id]">
+                  <span v-if="submitting[q.id]" class="spinner" style="width:12px;height:12px"></span>
+                  保存
+                </button>
                 <button class="btn btn-primary" @click="submitAnswer(q.id)" :disabled="submitting[q.id]">
                   <span v-if="submitting[q.id]" class="spinner" style="width:12px;height:12px"></span>
                   提交答案
                 </button>
                 <span class="text-sm text-muted">解答题将由教师批改</span>
               </div>
+              <div v-if="getAnswer(q.id)?.status === 'DRAFT'" class="text-sm text-muted" style="margin-top:6px">已保存草稿，可继续编辑后提交</div>
             </div>
             <div v-else class="submitted-answer">
               <div class="text-sm text-muted" style="margin-bottom:4px">已提交的答案：</div>
@@ -129,6 +146,11 @@
           </template>
         </div>
       </div>
+      <!--
+      FormulaWidget 通过 <Teleport to="body"> 渲染到 body 顶层，
+      放在这里仅用于保持在 provide 作用域内，不占据任何布局空间。
+      -->
+      <FormulaWidget />
 
       <!-- Done summary -->
       <div v-if="answeredCount === assignment.questions.length" class="done-banner card">
@@ -144,6 +166,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { assignmentApi, answerApi } from '@/api'
 import katex from 'katex'
+import LatexEditor from '@/components/LatexEditor.vue'
+import FormulaWidget from '@/components/FormulaWidget.vue'
 
 const route = useRoute()
 const assignmentId = Number(route.params.id)
@@ -164,6 +188,13 @@ const answeredCount = computed(() => {
   return assignment.value.questions.filter(q => getAnswer(q.id)).length
 })
 
+const assignmentStatusLabel = computed(() => {
+  if (!assignment.value) return ''
+  if (answeredCount.value === 0) return '未开始'
+  if (answeredCount.value < assignment.value.questions.length) return '进行中'
+  return '已完成'
+})
+
 function getAnswer(qid) {
   return answers.value.find(a => a.questionId === qid) || null
 }
@@ -181,6 +212,22 @@ async function selectChoice(qid, label) {
   if (getAnswer(qid)) return
   drafts.value[qid] = label
   await submitAnswer(qid)
+}
+
+async function saveAnswer(qid) {
+  const content = drafts.value[qid]
+  if (!content?.trim()) return
+  submitting.value[qid] = true
+  try {
+    const res = await answerApi.submit(assignmentId, { questionId: qid, answerContent: content, saveOnly: true })
+    if (res.success) {
+      const idx = answers.value.findIndex(a => a.questionId === qid)
+      if (idx >= 0) answers.value[idx] = res.data
+      else answers.value.push(res.data)
+    }
+  } finally {
+    submitting.value[qid] = false
+  }
 }
 
 async function submitAnswer(qid) {
@@ -226,7 +273,12 @@ onMounted(async () => {
       answerApi.list(assignmentId),
     ])
     if (aRes.success) assignment.value = aRes.data
-    if (ansRes.success) answers.value = ansRes.data || []
+    if (ansRes.success) {
+      answers.value = ansRes.data || []
+      answers.value.forEach(a => {
+        if (a.answerContent) drafts.value[a.questionId] = a.answerContent
+      })
+    }
   } finally {
     loading.value = false
   }
@@ -254,6 +306,7 @@ onMounted(async () => {
 .submitted-answer { background: var(--c-surface2); border-radius: var(--radius-sm); padding: 12px; margin-top: 8px; }
 .pending-badge { margin-top: 8px; font-size: 12px; color: var(--c-warning); }
 .done-banner { background: var(--c-success-bg); border-color: var(--c-success); text-align: center; padding: 24px; margin-top: 8px; }
+.status-badge { display: inline-block; margin-left: 10px; padding: 2px 8px; border-radius: 999px; background: var(--c-primary-bg); color: var(--c-primary); font-size: 12px; }
 .q-images { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .q-image { max-width: 240px; max-height: 180px; object-fit: contain; border: 1px solid var(--c-border); border-radius: var(--radius-sm); cursor: zoom-in; transition: opacity .12s; }
 .q-image:hover { opacity: .85; }
