@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>&#x524d;&#x7aef;&#x5355;&#x5143;&#x6d4b;&#x8bd5;&#x9875;&#x9762;</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+<link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="前端单元测试页面">前端单元测试页面</h1>
+<h2 id="概述">概述</h2>
+<p>这是一个专门用于测试前端 JavaScript 函数的页面，目前主要用于测试数学公式渲染相关的函数。</p>
+<h2 id="访问方式">访问方式</h2>
+<p>在浏览器中访问：<code>http://localhost:5175/unit-test</code> （开发服务器运行时）</p>
+<p>或通过导航栏的 &quot;🧪 单元测试&quot; 链接访问。</p>
+<h2 id="支持的测试函数">支持的测试函数</h2>
+<h3 id="1-renderlatextext">1. renderLatex(text)</h3>
+<p>将包含 LaTeX 公式的文本转换为 HTML。</p>
+<p><strong>参数：</strong></p>
+<ul>
+<li><code>text</code> (string): 包含 LaTeX 公式的文本</li>
+</ul>
+<p><strong>返回值：</strong></p>
+<ul>
+<li>HTML 字符串，公式部分被渲染为 KaTeX HTML</li>
+</ul>
+<p><strong>示例：</strong></p>
+<pre><code class="language-javascript"><span class="hljs-title function_">renderLatex</span>(<span class="hljs-string">&quot;质量为 $m$，速度为 $v$&quot;</span>)
+<span class="hljs-comment">// 返回: &quot;质量为 &lt;span&gt;...&lt;/span&gt;，速度为 &lt;span&gt;...&lt;/span&gt;&quot;</span>
+</code></pre>
+<h3 id="2-striplatextext">2. stripLatex(text)</h3>
+<p>从文本中移除 LaTeX 公式标记，替换为占位符。</p>
+<p><strong>参数：</strong></p>
+<ul>
+<li><code>text</code> (string): 包含 LaTeX 公式的文本</li>
+</ul>
+<p><strong>返回值：</strong></p>
+<ul>
+<li>纯文本字符串，公式被替换为 &quot;[公式]&quot;</li>
+</ul>
+<p><strong>示例：</strong></p>
+<pre><code class="language-javascript"><span class="hljs-title function_">stripLatex</span>(<span class="hljs-string">&quot;质量 $m$ 速度 $v$&quot;</span>)
+<span class="hljs-comment">// 返回: &quot;质量 [公式] 速度 [公式]&quot;</span>
+</code></pre>
+<h3 id="3-renderlatexwithimagestext-images">3. renderLatexWithImages(text, images)</h3>
+<p>将文本和图片组合渲染为 HTML。</p>
+<p><strong>参数：</strong></p>
+<ul>
+<li><code>text</code> (string): 包含 LaTeX 公式的文本</li>
+<li><code>images</code> (Array): 图片对象数组，每个对象包含 <code>dataUrl</code> 属性</li>
+</ul>
+<p><strong>返回值：</strong></p>
+<ul>
+<li>HTML 字符串，包含渲染的文本和图片</li>
+</ul>
+<h2 id="使用方法">使用方法</h2>
+<h3 id="预定义测试用例">预定义测试用例</h3>
+<p>页面加载后会自动显示一系列预定义的测试用例，覆盖各种常见场景：</p>
+<ul>
+<li>空字符串处理</li>
+<li>简单文本</li>
+<li>行内公式 (<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">.</mi><mi mathvariant="normal">.</mi><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">...</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.1056em;"></span><span class="mord">...</span></span></span></span>)</li>
+<li>块级公式 (<p class="katex-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi mathvariant="normal">.</mi><mi mathvariant="normal">.</mi><mi mathvariant="normal">.</mi></mrow><annotation encoding="application/x-tex">...</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.1056em;"></span><span class="mord">...</span></span></span></span></span></p>
+)</li>
+<li>换行符处理</li>
+<li>复杂数学公式</li>
+</ul>
+<p>点击&quot;运行所有测试&quot;按钮执行所有测试用例，或单独点击每个测试用例的&quot;运行&quot;按钮。</p>
+<h3 id="自定义测试">自定义测试</h3>
+<p>在页面底部可以进行自定义测试：</p>
+<ol>
+<li>选择要测试的函数</li>
+<li>在输入框中输入参数（JSON 格式）</li>
+<li>点击&quot;运行自定义测试&quot;</li>
+</ol>
+<p><strong>自定义测试示例：</strong></p>
+<pre><code class="language-json"><span class="hljs-comment">// 测试 renderLatex</span>
+<span class="hljs-string">&quot;牛顿第二定律：$$F = ma$$&quot;</span>
+
+<span class="hljs-comment">// 测试 stripLatex</span>
+<span class="hljs-string">&quot;质量 $m$ 速度 $v$&quot;</span>
+
+<span class="hljs-comment">// 测试 renderLatexWithImages</span>
+<span class="hljs-punctuation">[</span><span class="hljs-string">&quot;公式：$a^2 + b^2 = c^2$&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-punctuation">[</span><span class="hljs-punctuation">{</span><span class="hljs-attr">&quot;dataUrl&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;data:image/png;base64,test&quot;</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">]</span>
+</code></pre>
+<h2 id="测试结果">测试结果</h2>
+<p>每个测试用例会显示：</p>
+<ul>
+<li><strong>状态</strong>: 待运行/运行中/通过/失败</li>
+<li><strong>输入</strong>: 测试参数</li>
+<li><strong>期望</strong>: 期望的输出结果</li>
+<li><strong>实际</strong>: 实际的输出结果</li>
+<li><strong>输出</strong>: HTML 渲染结果（可直接预览）</li>
+<li><strong>错误</strong>: 如果测试失败，会显示错误信息</li>
+</ul>
+<h2 id="注意事项">注意事项</h2>
+<ol>
+<li>HTML 比较是基于字符串精确匹配，对于复杂的内容可能需要手动验证</li>
+<li>图片相关的测试需要有效的 base64 数据 URL</li>
+<li>所有测试都是在浏览器环境中运行的同步测试</li>
+</ol>
+<h2 id="扩展功能">扩展功能</h2>
+<p>如需添加更多测试函数，请在 <code>UnitTestView.vue</code> 中：</p>
+<ol>
+<li>在 <code>selectedFunction</code> 的选项中添加新函数</li>
+<li>在 <code>runCustomTest</code> 和 <code>runTest</code> 函数中添加对应的 case</li>
+<li>在 <code>initTestCases</code> 中添加预定义测试用例</li>
+</ol>
+
+            <script async src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+            
+        </body>
+        </html>
