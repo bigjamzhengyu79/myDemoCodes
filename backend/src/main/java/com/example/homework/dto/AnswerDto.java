@@ -11,6 +11,7 @@ public class AnswerDto {
         private Long questionId;
         private String answerContent;
         private String imageUrl;
+        private Boolean saveOnly = false;
     }
 
     @Data

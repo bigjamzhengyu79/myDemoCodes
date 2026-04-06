@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS student_answers (
     auto_score      INT DEFAULT NULL,
     feedback        TEXT,
     error_type      ENUM('CONCEPT','CALC','READING','NONE') DEFAULT NULL,
-    status          ENUM('SUBMITTED','AUTO_GRADED','REVIEWED') NOT NULL DEFAULT 'SUBMITTED',
+    status          ENUM('DRAFT','SUBMITTED','AUTO_GRADED','REVIEWED') NOT NULL DEFAULT 'DRAFT',
     submitted_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at     DATETIME DEFAULT NULL,
     reviewer_id     BIGINT DEFAULT NULL,
