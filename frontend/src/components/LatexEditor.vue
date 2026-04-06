@@ -122,7 +122,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import katex from 'katex'
-import LatexToolbar from './LatexToolbar.vue'
 import FormulaInput from './FormulaInput.vue'
 
 // Props
