@@ -44,7 +44,7 @@
             <div style="flex:1">
               <LatexEditor v-model:content-latex="step.contentLatex" 
                            class="form-control latex-mono" 
-                           rows="3" 
+                           :rows=3 
                            :placeholder="`步骤 ${i+1} 内容（LaTeX）`" 
                            :show-image-upload="false" 
               />

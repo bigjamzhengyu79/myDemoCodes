@@ -90,7 +90,7 @@ function onToggle() {
         class="fi-input fi-textarea"
         :value="modelValue"
         :placeholder="placeholder"
-        :rows="rows"
+        :rows=rows
         @input="onInput"
       />
 

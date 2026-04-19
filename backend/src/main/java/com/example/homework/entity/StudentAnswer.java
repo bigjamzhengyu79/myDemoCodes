@@ -29,8 +29,8 @@ public class StudentAnswer {
     @Column(name = "answer_content", columnDefinition = "TEXT")
     private String answerContent;
 
-    @Column(name = "image_url")
-    private String imageUrl;
+    @Column(name = "image_urls_json", columnDefinition = "MEDIUMTEXT")
+    private String imageUrlsJson;
 
     private Integer score;
 

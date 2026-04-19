@@ -32,7 +32,7 @@ public class AnswerService {
         answer.setQuestion(question);
         answer.setStudent(student);
         answer.setAnswerContent(req.getAnswerContent());
-        answer.setImageUrl(req.getImageUrl());
+        answer.setImageUrlsJson(req.getImageUrlsJson());
         answer.setSubmittedAt(LocalDateTime.now());
         if (Boolean.TRUE.equals(req.getSaveOnly())) {
             answer.setStatus(StudentAnswer.Status.DRAFT);
