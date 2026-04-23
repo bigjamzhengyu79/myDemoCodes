@@ -43,7 +43,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/users/**").permitAll()
                 .requestMatchers("/api/users/health").permitAll()
-                .requestMatchers("/api/math-goals/**").permitAll()
+                .requestMatchers("/api/goals/**").permitAll()
                 .requestMatchers("/api/assignments/**").permitAll()
                 .requestMatchers("/api/questions/**").permitAll()
                 .requestMatchers("/auth/**").permitAll() // ← 放行登录
