@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import UserList from '../views/UserList.vue'
-import MathGoals from '../views/MathGoals.vue'
+import GoalView from '../views/GoalView.vue'
 import UnitTestView from '../views/UnitTestView.vue'
 import LoginView from '../views/homework/LoginView.vue'
 import LayoutView from '../views/homework/LayoutView.vue'
@@ -16,7 +16,8 @@ import { useAuthStore } from '../store/auth'
 const routes = [
   { path: '/', component: Home },
   { path: '/users', component: UserList },
-  { path: '/math-goals', component: MathGoals },
+  { path: '/math-goals', redirect: '/goals' },
+  { path: '/goals', component: GoalView },
   { path: '/unit-test', component: UnitTestView },
   { path: '/login', component: LoginView },
   {
