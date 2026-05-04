@@ -25,6 +25,16 @@ public class GoalController {
         return ResponseEntity.ok(goalService.listParentGoals(status, keyword));
     }
 
+    /**
+     * 按需加载子目标
+     */
+    @GetMapping("/sub-goals")
+    public ResponseEntity<List<GoalResponse>> loadSubGoals(
+            @RequestParam Long parentId,
+            @RequestParam(required = false) Integer depth) {
+        return ResponseEntity.ok(goalService.loadSubGoals(parentId, depth));
+    }
+
     @GetMapping("/stats")
     public ResponseEntity<GoalStatsResponse> stats() {
         return ResponseEntity.ok(goalService.getStats());

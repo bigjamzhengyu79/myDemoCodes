@@ -27,4 +27,7 @@ public class SolutionStep {
 
     @Column(name = "common_errors", columnDefinition = "TEXT")
     private String commonErrors;
+
+    @Column(name = "image_urls_json", columnDefinition = "MEDIUMTEXT")
+    private String imageUrlsJson;
 }

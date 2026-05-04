@@ -42,11 +42,11 @@
           <div v-for="(step, i) in form.solutionSteps" :key="i" class="step-row">
             <div class="step-num-badge">{{ i + 1 }}</div>
             <div style="flex:1">
-              <LatexEditor v-model:content-latex="step.contentLatex" 
-                           class="form-control latex-mono" 
-                           :rows=3 
-                           :placeholder="`步骤 ${i+1} 内容（LaTeX）`" 
-                           :show-image-upload="false" 
+              <LatexEditor 
+                v-model:content-latex="step.contentLatex" 
+                v-model:image-urls="step.imageUrls"
+                :rows=3
+                :placeholder="`步骤 ${i+1} 内容（LaTeX）`"
               />
               <div class="flex gap-2" style="margin-top:6px">
                 <input v-model.number="step.stepScore" class="form-control" type="number" min="0"
@@ -144,13 +144,14 @@ const form = ref({
   difficulty: 3, totalScore: 5, answerKey: '', source: '',
   knowledgeTagIds: [],
   imageUrls: [],   // [{ dataUrl, name, size }]
+  imageUrls_steps: [],   // [{ dataUrl, name, size }] for solution steps
   options: [
     { optionLabel: 'A', contentLatex: '', isCorrect: false },
     { optionLabel: 'B', contentLatex: '', isCorrect: false },
     { optionLabel: 'C', contentLatex: '', isCorrect: false },
     { optionLabel: 'D', contentLatex: '', isCorrect: false },
   ],
-  solutionSteps: [{ stepOrder: 1, contentLatex: '', stepScore: 0, commonErrors: '' }],
+  solutionSteps: [{ stepOrder: 1, contentLatex: '', stepScore: 0, commonErrors: '', imageUrls: [] }],
 })
 
 const stepTotal = computed(() => form.value.solutionSteps.reduce((s, st) => s + (st.stepScore || 0), 0))
@@ -159,7 +160,7 @@ const stepTotal = computed(() => form.value.solutionSteps.reduce((s, st) => s + 
 function addStep() {
   form.value.solutionSteps.push({
     stepOrder: form.value.solutionSteps.length + 1,
-    contentLatex: '', stepScore: 0, commonErrors: ''
+    contentLatex: '', stepScore: 0, commonErrors: '', imageUrls: []
   })
 }
 
@@ -171,10 +172,21 @@ async function save() {
       form.value.options.forEach(o => { o.isCorrect = o.optionLabel === correctOption.value })
       form.value.answerKey = correctOption.value
     }
-    // Send imageUrls as dataUrl strings (backend stores as JSON text column)
+    // Process imageUrls for question stem
+    const imageUrlsJson = JSON.stringify(form.value.imageUrls.map(img => img.dataUrl))
+    
+    // Process imageUrls for each step
+    const solutionStepsPayload = form.value.solutionSteps.map(step => ({
+      ...step,
+      imageUrlsJson: step.imageUrls && step.imageUrls.length > 0 
+        ? JSON.stringify(step.imageUrls.map(img => img.dataUrl))
+        : null
+    }))
+    
     const payload = {
       ...form.value,
-      imageUrlsJson: JSON.stringify(form.value.imageUrls.map(img => img.dataUrl)),
+      imageUrlsJson,
+      solutionSteps: solutionStepsPayload
     }
     if (isEdit.value) {
       await questionApi.update(route.params.id, payload)
@@ -205,7 +217,19 @@ onMounted(async () => {
       form.value.source = q.source || ''
       form.value.knowledgeTagIds = q.knowledgeTags.map(t => t.id)
       if (q.options?.length) form.value.options = q.options.map(o => ({ ...o }))
-      if (q.solutionSteps?.length) form.value.solutionSteps = q.solutionSteps.map(s => ({ ...s }))
+      if (q.solutionSteps?.length) {
+        form.value.solutionSteps = q.solutionSteps.map(s => {
+          const step = { ...s, imageUrls: [] }
+          // Restore step images
+          if (s.imageUrlsJson) {
+            try {
+              const urls = JSON.parse(s.imageUrlsJson)
+              step.imageUrls = urls.map((dataUrl, i) => ({ dataUrl, name: `步骤图片${i+1}`, size: 0 }))
+            } catch {}
+          }
+          return step
+        })
+      }
       correctOption.value = q.answerKey || 'A'
       // Restore saved images
       if (q.imageUrlsJson) {

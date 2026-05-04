@@ -54,7 +54,7 @@
         :goal="goal"
         @edit="openEdit"
         @delete="handleDelete"
-        @addSub="openAddSub"
+        @addSub="handleAddSub"
         @editSub="openEditSub"
         @deleteSub="handleDeleteSub"
       />
@@ -122,6 +122,14 @@ function openAddSub(parentGoal) {
   modal.goalData = null
   modal.parentId = parentGoal.id
   modal.parentTitle = parentGoal.title
+  modal.visible = true
+}
+
+function handleAddSub(targetGoal) {
+  // targetGoal 可能是父目标或子目标
+  modal.goalData = null
+  modal.parentId = targetGoal.id
+  modal.parentTitle = targetGoal.title
   modal.visible = true
 }
 

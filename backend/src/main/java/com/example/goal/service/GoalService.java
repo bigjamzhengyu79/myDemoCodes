@@ -33,6 +33,21 @@ public class GoalService {
         return goals.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
+    /**
+     * 按需加载子目标，支持指定深度
+     */
+    public List<GoalResponse> loadSubGoals(Long parentId, Integer depth) {
+        if (depth == null || depth <= 1) {
+            // 只加载直接子目标
+            List<Goal> subs = goalRepository.findByParentIdOrderByPlannedStartAsc(parentId);
+            return subs.stream().map(this::toResponse).collect(Collectors.toList());
+        } else {
+            // 加载指定深度的子孙目标
+            List<Goal> descendants = goalRepository.findDescendantsWithinDepth(parentId, depth);
+            return descendants.stream().map(this::toResponse).collect(Collectors.toList());
+        }
+    }
+
     public GoalResponse getGoal(Long id) {
         return toResponse(findOrThrow(id));
     }
@@ -41,6 +56,12 @@ public class GoalService {
     public GoalResponse createGoal(GoalRequest req) {
         Goal goal = new Goal();
         applyRequest(goal, req);
+        // 设置层级深度
+        if (goal.getParent() != null) {
+            goal.setDepth(goal.getParent().getDepth() + 1);
+        } else {
+            goal.setDepth(1);
+        }
         goalRepository.save(goal);
         return toResponse(goal);
     }
@@ -49,6 +70,12 @@ public class GoalService {
     public GoalResponse updateGoal(Long id, GoalRequest req) {
         Goal goal = findOrThrow(id);
         applyRequest(goal, req);
+        // 更新层级深度
+        if (goal.getParent() != null) {
+            goal.setDepth(goal.getParent().getDepth() + 1);
+        } else {
+            goal.setDepth(1);
+        }
         if (!goal.getSubGoals().isEmpty()) {
             recalcFromSubs(goal);
         }
@@ -90,13 +117,25 @@ public class GoalService {
         }
     }
 
+    /**
+     * 递归加权计算进度和状态，权重随层级递减（如1.0, 0.8, 0.6, 0.4）。
+     */
     private void recalcFromSubs(Goal parent) {
         List<Goal> subs = parent.getSubGoals();
         if (subs.isEmpty()) return;
 
-        int avgProgress = (int) Math.round(
-                subs.stream().mapToInt(Goal::getProgress).average().orElse(0));
-        parent.setProgress(avgProgress);
+        double[] weights = {1.0, 0.8, 0.6, 0.4};
+        int maxDepth = 4;
+        double total = 0;
+        double weightSum = 0;
+        for (Goal sub : subs) {
+            int d = Math.min(sub.getDepth() - parent.getDepth(), maxDepth - 1);
+            double w = weights[Math.max(0, d)];
+            total += calcProgressRecursive(sub, 1, weights);
+            weightSum += w;
+        }
+        int weightedProgress = weightSum > 0 ? (int) Math.round(total / weightSum) : 0;
+        parent.setProgress(weightedProgress);
 
         GoalStatus derived;
         if (subs.stream().allMatch(s -> s.getStatus() == GoalStatus.DONE)) {
@@ -112,10 +151,26 @@ public class GoalService {
         parent.setStatus(derived);
     }
 
+    /**
+     * 递归加权进度计算，depthLevel从1开始。
+     */
+    private double calcProgressRecursive(Goal goal, int depthLevel, double[] weights) {
+        if (goal.getSubGoals().isEmpty() || depthLevel > weights.length) {
+            return goal.getProgress() * weights[Math.min(depthLevel - 1, weights.length - 1)];
+        }
+        double total = 0;
+        double weightSum = 0;
+        for (Goal sub : goal.getSubGoals()) {
+            total += calcProgressRecursive(sub, depthLevel + 1, weights);
+            weightSum += weights[Math.min(depthLevel, weights.length - 1)];
+        }
+        return weightSum > 0 ? total / weightSum : 0;
+    }
+
     private int calcProgress(Goal g) {
-        if (g.getSubGoals().isEmpty()) return g.getProgress();
-        return (int) Math.round(
-                g.getSubGoals().stream().mapToInt(Goal::getProgress).average().orElse(0));
+        // 递归加权进度
+        double[] weights = {1.0, 0.8, 0.6, 0.4};
+        return (int) Math.round(calcProgressRecursive(g, 1, weights));
     }
 
     private GoalStatus calcStatus(Goal g) {

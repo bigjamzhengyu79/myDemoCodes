@@ -32,4 +32,8 @@ export const goalApi = {
   remove(id) {
     return http.delete(`/goals/${id}`)
   },
+  // 按需加载子目标
+  loadSubGoals(parentId, depth = 2) {
+    return http.get('/goals/sub-goals', { params: { parentId, depth } })
+  },
 }

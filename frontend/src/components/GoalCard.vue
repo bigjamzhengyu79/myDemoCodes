@@ -1,13 +1,16 @@
 <template>
   <div class="parent-card">
-    <div class="parent-header" @click="expanded = !expanded">
-      <span class="toggle">{{ expanded ? '▾' : '▸' }}</span>
+    <div class="parent-header" @click="toggleExpanded">
+      <span class="toggle" v-if="goal.subGoals?.length > 0">{{ isExpanded ? '▾' : '▸' }}</span>
 
       <div class="parent-info">
         <div class="title-row">
           <span class="title">{{ goal.title }}</span>
           <StatusBadge :status="goal.status" />
-          <span class="sub-count">{{ goal.subGoals?.length || 0 }} 个子目标</span>
+          <span class="sub-count" :class="{ 'has-subs': goal.subGoals?.length > 0 }">
+            {{ goal.subGoals?.length || 0 }} 个子目标
+          </span>
+          <span class="depth-badge">层级 {{ goal.depth || 1 }}</span>
         </div>
 
         <div class="meta-row">
@@ -33,49 +36,32 @@
       </div>
     </div>
 
+    <!-- 子目标列表（可展开/收起） -->
     <Transition name="slide">
-      <div v-if="expanded" class="sub-list">
-        <div v-if="!goal.subGoals?.length" class="sub-empty">
-          暂无子目标，点击「+ 子目标」开始分解
-        </div>
-
-        <div
+      <div v-if="isExpanded && goal.subGoals?.length > 0" class="sub-list">
+        <SubGoalItem
           v-for="(sub, idx) in goal.subGoals"
           :key="sub.id"
-          class="sub-item"
-        >
-          <div class="connector">
-            <div class="v-line top"></div>
-            <div class="node-dot"></div>
-            <div class="v-line bottom" :class="{ invisible: idx === goal.subGoals.length - 1 }"></div>
-          </div>
-          <div class="h-line"></div>
+          :goal="sub"
+          :parent-id="goal.id"
+          :is-last="idx === goal.subGoals.length - 1"
+          @add-sub="$emit('addSub', $event)"
+          @edit-sub="$emit('editSub', $event)"
+          @delete-sub="$emit('deleteSub', $event)"
+        />
+      </div>
+    </Transition>
 
-          <div class="sub-body">
-            <div class="sub-title-row">
-              <span class="sub-title">{{ sub.title }}</span>
-              <StatusBadge :status="sub.status" small />
-            </div>
-            <div v-if="sub.description" class="sub-desc">{{ sub.description }}</div>
-            <div class="sub-meta">
-              <span>预计：{{ sub.plannedStart }} ~ {{ sub.plannedEnd }}</span>
-              <span v-if="sub.actualStart">实际开始：{{ sub.actualStart }}</span>
-              <span v-if="sub.actualEnd">实际完成：{{ sub.actualEnd }}</span>
-              <span>实施者：{{ sub.owners || '—' }}</span>
-            </div>
-            <div class="progress-row" style="margin-top:6px">
-              <div class="bar-bg" style="height:3px">
-                <div class="bar-fill" :class="`fill-${sub.status.toLowerCase()}`"
-                     :style="{ width: sub.progress + '%' }" style="height:100%"></div>
-              </div>
-              <span class="pct" style="font-size:10px">{{ sub.progress }}%</span>
-            </div>
-          </div>
-
-          <div class="sub-actions">
-            <button class="btn-icon" @click="$emit('editSub', { parentId: goal.id, sub })">编辑</button>
-            <button class="btn-icon" @click="$emit('deleteSub', { parentId: goal.id, subId: sub.id })">删除</button>
-          </div>
+    <!-- 展开/折叠区域（用于查看更多详情或添加更多子目标） -->
+    <Transition name="slide">
+      <div v-if="isExpanded" class="expanded-section">
+        <div v-if="!goal.subGoals?.length" class="sub-empty">
+          <div class="empty-icon">📋</div>
+          <div class="empty-text">暂无子目标</div>
+          <div class="empty-action">点击上方的「+ 子目标」按钮开始分解任务</div>
+        </div>
+        <div v-else class="expand-hint">
+          子目标已显示在上面。如需添加更多子目标，请点击「+ 子目标」按钮。
         </div>
       </div>
     </Transition>
@@ -83,8 +69,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import StatusBadge from './StatusBadge.vue'
+import SubGoalItem from './SubGoalItem.vue'
+import { useGoalStore } from '@/stores/goalStore'
 
 const props = defineProps({
   goal: { type: Object, required: true },
@@ -92,7 +80,16 @@ const props = defineProps({
 
 defineEmits(['edit', 'delete', 'addSub', 'editSub', 'deleteSub'])
 
-const expanded = ref(true)
+const goalStore = useGoalStore()
+const isExpanded = computed(() => goalStore.expandedGoals.has(props.goal.id))
+
+function toggleExpanded() {
+  goalStore.toggleExpanded(props.goal.id)
+}
+
+function toggleSubExpanded(subId) {
+  goalStore.toggleExpanded(subId)
+}
 </script>
 
 <style scoped>
@@ -112,6 +109,11 @@ const expanded = ref(true)
 .sub-count {
   font-size: 11px; color: #999; background: #f2f2f0;
   border-radius: 10px; padding: 1px 7px; margin-left: 2px;
+}
+.sub-count.has-subs { color: #1D9E75; background: #E1F5EE; font-weight: 500; }
+.depth-badge {
+  font-size: 10px; color: #666; background: #e8f4fd;
+  border-radius: 8px; padding: 1px 6px;
 }
 .meta-row {
   display: flex; gap: 14px; font-size: 12px;
@@ -136,31 +138,19 @@ const expanded = ref(true)
   border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer; color: #888;
 }
 .btn-icon:hover { background: #f5f5f3; color: #333; }
+.btn-add-sub {
+  border: 0.5px solid #1D9E75; color: #0F6E56; background: transparent;
+  border-radius: 6px; padding: 2px 6px; font-size: 10px; cursor: pointer; font-weight: 500;
+}
+.btn-add-sub:hover { background: #E1F5EE; }
 .sub-list { border-top: 0.5px solid #eee; }
-.sub-empty { padding: 10px 16px 10px 42px; font-size: 12px; color: #aaa; }
-.sub-item {
-  display: flex; align-items: flex-start; gap: 0;
-  padding: 10px 16px; border-top: 0.5px solid #f0f0ee;
-}
-.sub-item:hover { background: #fafaf9; }
-.connector {
-  display: flex; flex-direction: column; align-items: center;
-  width: 26px; flex-shrink: 0; align-self: stretch; padding-top: 2px;
-}
-.v-line { width: 1px; background: #ddd; flex: 1; min-height: 6px; }
-.v-line.invisible { background: transparent; }
-.node-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  border: 1.5px solid #ccc; background: #fff; flex-shrink: 0;
-}
-.h-line { width: 12px; height: 1px; background: #ddd; flex-shrink: 0; margin-top: 12px; }
-.sub-body { flex: 1; min-width: 0; }
-.sub-title-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; flex-wrap: wrap; }
-.sub-title { font-size: 13px; color: #111; }
-.sub-desc { font-size: 11px; color: #888; margin-bottom: 5px; line-height: 1.5; }
-.sub-meta { display: flex; gap: 12px; font-size: 11px; color: #888; flex-wrap: wrap; }
-.sub-actions { display: flex; gap: 4px; flex-shrink: 0; margin-top: 2px; }
+.sub-empty { padding: 20px 16px; font-size: 12px; color: #aaa; text-align: center; }
+.empty-icon { font-size: 24px; margin-bottom: 8px; }
+.empty-text { font-weight: 500; margin-bottom: 4px; }
+.empty-action { font-size: 11px; color: #888; }
 .slide-enter-active, .slide-leave-active { transition: all .2s ease; overflow: hidden; }
 .slide-enter-from, .slide-leave-to { max-height: 0; opacity: 0; }
 .slide-enter-to, .slide-leave-from { max-height: 2000px; opacity: 1; }
+.expanded-section { border-top: 0.5px solid #eee; padding: 10px 16px; background: #fafafa; }
+.expand-hint { font-size: 12px; color: #666; text-align: center; }
 </style>

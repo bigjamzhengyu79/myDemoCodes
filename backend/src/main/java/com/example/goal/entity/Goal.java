@@ -48,6 +48,12 @@ public class Goal {
     @Column(length = 500)
     private String owners;
 
+    /**
+     * 层级深度，根目标为1，子目标依次+1，最大支持4层。
+     */
+    @Column(nullable = false)
+    private Integer depth = 1;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

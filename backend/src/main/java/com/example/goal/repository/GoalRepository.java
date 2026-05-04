@@ -25,4 +25,8 @@ public interface GoalRepository extends JpaRepository<Goal, Long> {
     long countByParentIsNotNull();
 
     long countByParentIsNullAndStatus(GoalStatus status);
+
+    // 查询某父目标下指定深度的子孙目标
+    @Query("SELECT g FROM Goal g WHERE g.parent.id = :parentId AND g.depth <= :maxDepth")
+    List<Goal> findDescendantsWithinDepth(@Param("parentId") Long parentId, @Param("maxDepth") int maxDepth);
 }
