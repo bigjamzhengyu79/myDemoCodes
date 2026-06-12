@@ -1,5 +1,6 @@
 package com.example.homework.entity;
 
+import com.example.entity.ClassGroup;
 import com.example.entity.User;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -26,8 +27,12 @@ public class Assignment {
     @JoinColumn(name = "teacher_id", nullable = false)
     private User teacher;
 
-    @Column(name = "class_name", length = 64)
-    private String className;
+    /**
+     * 作业对应的班级（通过关联表，空表示对所有学生可见）
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_group_id")
+    private ClassGroup classGroup;
 
     @Column(name = "start_time")
     private LocalDateTime startTime;

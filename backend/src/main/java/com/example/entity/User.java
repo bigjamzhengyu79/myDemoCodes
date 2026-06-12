@@ -1,10 +1,14 @@
 package com.example.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -32,11 +36,15 @@ public class User {
     @Column(nullable = false)
     private Role role = Role.STUDENT;
 
-    @Column(name = "class_name", length = 64)
-    private String className;
-
     @Column(name = "avatar_url")
     private String avatarUrl;
+
+    /**
+     * 学生所属的班级（多对多，反向关联）
+     */
+    @ManyToMany(mappedBy = "students", fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<ClassGroup> classGroups = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -44,7 +52,7 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    public enum Role { TEACHER, STUDENT }
+    public enum Role { ADMIN, TEACHER, STUDENT }
 
     @PrePersist
     protected void onCreate() {

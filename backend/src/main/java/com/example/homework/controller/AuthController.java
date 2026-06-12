@@ -32,8 +32,7 @@ public class AuthController {
             "id", user.getId(),
             "username", user.getUsername(),
             "realName", user.getRealName(),
-            "role", user.getRole().name(),
-            "className", user.getClassName() != null ? user.getClassName() : ""
+            "role", user.getRole().name()
         )));
     }
 }

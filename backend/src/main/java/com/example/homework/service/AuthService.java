@@ -35,7 +35,6 @@ public class AuthService {
         resp.setUsername(user.getUsername());
         resp.setRealName(user.getRealName());
         resp.setRole(user.getRole().name());
-        resp.setClassName(user.getClassName());
         return resp;
     }
 

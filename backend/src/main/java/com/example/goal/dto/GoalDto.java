@@ -21,6 +21,12 @@ public class GoalDto {
         private Integer progress;
         private String owners;
         private Long parentId;
+        private Long assigneeId;
+        /**
+         * 分配的学生 ID 列表(多对多)。
+         * null 表示不修改现有分配;空集合表示清空;非空表示替换为该集合。
+         */
+        private List<Long> assigneeIds;
     }
 
     @Data
@@ -39,6 +45,14 @@ public class GoalDto {
         private List<GoalResponse> subGoals;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
+        private Long managerId;
+        private String managerName;
+        private Long assigneeId;
+        private String assigneeName;
+        /** 被分配的学生 ID 列表(多对多)。 */
+        private List<Long> assigneeIds;
+        /** 被分配的学生姓名列表(展示用)。 */
+        private List<String> assigneeNames;
     }
 
     @Data

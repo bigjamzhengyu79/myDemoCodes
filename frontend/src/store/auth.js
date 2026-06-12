@@ -8,6 +8,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = () => !!token.value
   const isTeacher = () => user.value?.role === 'TEACHER'
+  const isAdmin = () => user.value?.role === 'ADMIN'
 
   function setAuthData(tokenValue, userData) {
     token.value = tokenValue
@@ -32,8 +33,7 @@ export const useAuthStore = defineStore('auth', () => {
       id: resp.data.userId,
       username: resp.data.username,
       realName: resp.data.realName,
-      role: resp.data.role,
-      className: resp.data.className
+      role: resp.data.role
     })
     return { success: true }
   }
@@ -47,6 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isAuthenticated,
     isTeacher,
+    isAdmin,
     login,
     logout,
     setAuthData,

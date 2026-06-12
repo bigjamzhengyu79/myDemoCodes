@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="modal-mask" @click.self="close">
+    <div v-if="visible" class="modal-mask">
       <div class="modal-box">
         <div class="modal-header">
           <span class="modal-title">{{ isEdit ? '编辑目标' : (isSubGoal ? '新增子目标' : '新增父目标') }}</span>
@@ -71,6 +71,45 @@
               <span>{{ form.progress }}%</span>
             </div>
           </div>
+
+          <!-- 分配学生(多对多) -->
+          <div class="field-section">分配学生</div>
+          <div class="field">
+            <div class="assign-students">
+              <div class="selected-students" v-if="form.assigneeIds && form.assigneeIds.length">
+                <span
+                  v-for="sid in form.assigneeIds"
+                  :key="sid"
+                  class="student-chip"
+                >
+                  {{ studentNameOf(sid) }}
+                  <button type="button" class="chip-remove" @click="removeStudent(sid)">✕</button>
+                </span>
+              </div>
+              <div v-else class="assign-empty">暂未分配学生</div>
+              <div class="assign-actions">
+                <input
+                  v-model="studentSearch"
+                  type="text"
+                  class="search-input"
+                  placeholder="搜索学生姓名 / 用户名…"
+                  @input="onStudentSearch"
+                />
+                <div v-if="filteredStudents.length" class="student-list">
+                  <div
+                    v-for="s in filteredStudents"
+                    :key="s.id"
+                    class="student-item"
+                    :class="{ picked: form.assigneeIds.includes(s.id) }"
+                    @click="toggleStudent(s.id)"
+                  >
+                    <span class="student-name">{{ s.realName || s.username }}</span>
+                  </div>
+                </div>
+                <div v-else-if="studentSearch" class="assign-empty-sm">没有匹配的学生</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="modal-footer">
@@ -85,7 +124,8 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
+import axios from 'axios'
 
 const props = defineProps({
   visible: Boolean,
@@ -108,6 +148,7 @@ const defaultForm = () => ({
   actualEnd: '',
   progress: 0,
   owners: '',
+  assigneeIds: [],
 })
 
 const form = ref(defaultForm())
@@ -117,6 +158,68 @@ const isSubGoal = computed(() => !!props.parentId)
 const hasSubGoals = computed(() =>
   isEdit.value && props.goalData?.subGoals?.length > 0
 )
+
+const allStudents = ref([])
+const studentSearch = ref('')
+
+const filteredStudents = computed(() => {
+  const kw = studentSearch.value.trim().toLowerCase()
+  if (!kw) return allStudents.value.slice(0, 20)
+  return allStudents.value.filter(s => {
+    const name = (s.realName || '').toLowerCase()
+    const uname = (s.username || '').toLowerCase()
+    return name.includes(kw) || uname.includes(kw)
+  }).slice(0, 30)
+})
+
+const studentNameOf = (sid) => {
+  const s = allStudents.value.find(x => x.id === sid)
+  return s ? (s.realName || s.username) : `#${sid}`
+}
+
+const toggleStudent = (sid) => {
+  const arr = form.value.assigneeIds || []
+  const idx = arr.indexOf(sid)
+  if (idx >= 0) {
+    form.value.assigneeIds = arr.filter(x => x !== sid)
+  } else {
+    form.value.assigneeIds = [...arr, sid]
+  }
+}
+
+const removeStudent = (sid) => {
+  form.value.assigneeIds = (form.value.assigneeIds || []).filter(x => x !== sid)
+}
+
+const onStudentSearch = () => { /* 触发 computed */ }
+
+const http = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
+  timeout: 10000,
+})
+http.interceptors.request.use(config => {
+  const token = localStorage.getItem('token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+http.interceptors.response.use(res => res.data)
+
+async function fetchStudents() {
+  try {
+    const resp = await http.get('/users', { params: { role: 'STUDENT' } })
+    allStudents.value = (resp.data || []).map(u => ({
+      id: u.id,
+      realName: u.realName || u.real_name,
+      username: u.username,
+    }))
+  } catch (e) {
+    allStudents.value = []
+  }
+}
+
+onMounted(() => {
+  fetchStudents()
+})
 
 watch(() => props.visible, (val) => {
   if (val) {
@@ -131,6 +234,9 @@ watch(() => props.visible, (val) => {
         actualEnd: props.goalData.actualEnd || '',
         progress: props.goalData.progress || 0,
         owners: props.goalData.owners || '',
+        assigneeIds: Array.isArray(props.goalData.assigneeIds)
+          ? [...props.goalData.assigneeIds]
+          : [],
       }
     } else {
       form.value = defaultForm()
@@ -214,4 +320,43 @@ async function submit() {
 }
 .btn-save:hover { background: #0F6E56; }
 .btn-save:disabled { opacity: .6; cursor: not-allowed; }
+
+.assign-students {
+  background: #f9fafb; border: 1px solid #eef0f2; border-radius: 10px;
+  padding: 10px;
+}
+.selected-students {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;
+}
+.student-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #E1F5EE; color: #0F6E56; border-radius: 999px;
+  padding: 3px 4px 3px 10px; font-size: 12px;
+}
+.chip-remove {
+  border: none; background: transparent; color: #0F6E56;
+  cursor: pointer; font-size: 12px; padding: 0 4px;
+}
+.chip-remove:hover { color: #c0392b; }
+.assign-empty, .assign-empty-sm {
+  font-size: 12px; color: #999; text-align: center; padding: 6px 0;
+}
+.assign-empty-sm { padding: 4px 0; text-align: left; }
+.search-input {
+  width: 100%; border: 0.5px solid #ccc; border-radius: 6px;
+  padding: 5px 10px; font-size: 12px;
+}
+.student-list {
+  max-height: 160px; overflow-y: auto; border: 0.5px solid #eee;
+  border-radius: 6px; background: #fff; margin-top: 6px;
+}
+.student-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px; cursor: pointer; font-size: 12px;
+  border-bottom: 0.5px solid #f5f5f5;
+}
+.student-item:last-child { border-bottom: none; }
+.student-item:hover { background: #f0faf5; }
+.student-item.picked { background: #E1F5EE; color: #0F6E56; }
+.student-class { color: #888; font-size: 11px; }
 </style>

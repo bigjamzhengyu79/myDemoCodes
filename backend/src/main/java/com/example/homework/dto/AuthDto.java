@@ -17,6 +17,5 @@ public class AuthDto {
         private String username;
         private String realName;
         private String role;
-        private String className;
     }
 }

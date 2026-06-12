@@ -1,9 +1,11 @@
 package com.example.homework.service;
 
+import com.example.entity.ClassGroup;
 import com.example.entity.User;
 import com.example.homework.dto.AssignmentDto;
 import com.example.homework.entity.*;
 import com.example.homework.repository.*;
+import com.example.repository.ClassGroupRepository;
 import com.example.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ public class AssignmentService {
     private final AssignmentRepository assignmentRepository;
     private final QuestionRepository questionRepository;
     private final UserRepository userRepository;
+    private final ClassGroupRepository classGroupRepository;
 
     public List<AssignmentDto.Response> listByTeacher(String username) {
         User teacher = userRepository.findByUsername(username).orElseThrow();
@@ -29,18 +32,27 @@ public class AssignmentService {
 
     public List<AssignmentDto.Response> listForStudent(String username) {
         User student = userRepository.findByUsername(username).orElseThrow();
-        String studentClassName = student.getClassName();
 
-        // 获取所有已发布的作业，再根据班级进行过滤
+        // 通过关联表查出学生所在的所有班级 ID
+        List<Long> classGroupIds = classGroupRepository.findClassGroupIdsByStudentId(student.getId());
+
+        if (classGroupIds.isEmpty()) {
+            // 学生未加入任何班级时，只显示未指定班级的作业
+            return assignmentRepository.findAll().stream()
+                    .filter(a -> a.getStatus() == Assignment.Status.PUBLISHED)
+                    .filter(a -> a.getClassGroup() == null)
+                    .map(AssignmentDto.Response::from)
+                    .collect(Collectors.toList());
+        }
+
+        // 获取学生所在班级的已发布作业
         return assignmentRepository.findAll().stream()
                 .filter(a -> a.getStatus() == Assignment.Status.PUBLISHED)
                 .filter(a -> {
-                    // 如果作业班级为空，则所有学生都能看到
-                    if (a.getClassName() == null || a.getClassName().isEmpty()) {
-                        return true;
-                    }
-                    // 如果作业班级不为空，只有班级匹配的学生能看到
-                    return a.getClassName().equals(studentClassName);
+                    // 未指定班级的作业对所有学生可见
+                    if (a.getClassGroup() == null) return true;
+                    // 指定了班级的作业只对该班学生可见
+                    return classGroupIds.contains(a.getClassGroup().getId());
                 })
                 .map(AssignmentDto.Response::from)
                 .collect(Collectors.toList());
@@ -57,7 +69,12 @@ public class AssignmentService {
         Assignment a = new Assignment();
         a.setTitle(req.getTitle());
         a.setDescription(req.getDescription());
-        a.setClassName(req.getClassName());
+        // 通过 classGroupId 关联班级（如果提供的话）
+        if (req.getClassGroupId() != null) {
+            ClassGroup cg = classGroupRepository.findById(req.getClassGroupId())
+                    .orElseThrow(() -> new RuntimeException("班级不存在: " + req.getClassGroupId()));
+            a.setClassGroup(cg);
+        }
         a.setDueTime(req.getDueTime());
         a.setTeacher(teacher);
         a.setStatus(Assignment.Status.DRAFT);

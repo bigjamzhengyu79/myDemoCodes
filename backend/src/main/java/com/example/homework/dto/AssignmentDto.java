@@ -11,7 +11,7 @@ public class AssignmentDto {
     public static class Request {
         private String title;
         private String description;
-        private String className;
+        private Long classGroupId;
         private LocalDateTime dueTime;
         private List<Long> questionIds;
     }
@@ -21,7 +21,8 @@ public class AssignmentDto {
         private Long id;
         private String title;
         private String description;
-        private String className;
+        private Long classGroupId;
+        private String classGroupName;
         private String teacherName;
         private LocalDateTime dueTime;
         private String status;
@@ -33,7 +34,10 @@ public class AssignmentDto {
             r.id = a.getId();
             r.title = a.getTitle();
             r.description = a.getDescription();
-            r.className = a.getClassName();
+            if (a.getClassGroup() != null) {
+                r.classGroupId = a.getClassGroup().getId();
+                r.classGroupName = a.getClassGroup().getName();
+            }
             r.teacherName = a.getTeacher() != null ? a.getTeacher().getRealName() : null;
             r.dueTime = a.getDueTime();
             r.status = a.getStatus().name();

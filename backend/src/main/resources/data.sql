@@ -1,7 +1,7 @@
 -- 插入种子用户（密码都是 bcrypt 加密密码：123456）
-INSERT IGNORE INTO users (username, password, real_name, role, class_name)
+INSERT IGNORE INTO users (username, password, real_name, role)
 VALUES
-    ('teacher01', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDa', '张老师', 'TEACHER', '高三(1)班');
+    ('teacher01', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDa', '张老师', 'TEACHER');
 
 -- 插入示例数据到 goals 表，含父目标和子目标
 INSERT IGNORE INTO goals (id, title, description, status, planned_start, planned_end, actual_start, actual_end, progress, owners, parent_id, created_at, updated_at)

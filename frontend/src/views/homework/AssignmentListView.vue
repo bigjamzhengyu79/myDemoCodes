@@ -42,7 +42,7 @@
         <div class="text-sm text-muted" style="margin-bottom:10px">{{ a.description }}</div>
         <hr class="divider" style="margin:10px 0">
         <div class="flex-between text-sm text-muted">
-          <span>班级：{{ a.className }}</span>
+          <span>班级：{{ a.classGroupName || '全部' }}</span>
           <span v-if="a.dueTime">截止 {{ fmtDate(a.dueTime) }}</span>
         </div>
         <div v-if="auth.isTeacher() && a.status === 'DRAFT'" style="margin-top:10px">
@@ -65,7 +65,10 @@
         </div>
         <div class="form-group">
           <label class="form-label">班级</label>
-          <input v-model="form.className" class="form-control" placeholder="如：高三(1)班" />
+          <select v-model="form.classGroupId" class="form-control">
+            <option :value="null">全部班级</option>
+            <option v-for="cg in classGroups" :key="cg.id" :value="cg.id">{{ cg.name }}</option>
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label">截止时间</label>
@@ -86,6 +89,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
 import { assignmentApi } from '@/api'
 
@@ -93,7 +97,8 @@ const auth = useAuthStore()
 const assignments = ref([])
 const loading = ref(true)
 const showCreate = ref(false)
-const form = ref({ title: '', description: '', className: '', dueTime: '' })
+const classGroups = ref([])
+const form = ref({ title: '', description: '', classGroupId: null, dueTime: '' })
 const questionIds = ref('1,2,3')
 
 const published = computed(() => assignments.value.filter(a => a.status === 'PUBLISHED').length)
@@ -108,8 +113,15 @@ async function createAssignment() {
   const ids = questionIds.value.split(',').map(s => parseInt(s.trim())).filter(Boolean)
   await assignmentApi.create({ ...form.value, questionIds: ids, dueTime: form.value.dueTime || null })
   showCreate.value = false
-  form.value = { title: '', description: '', className: '', dueTime: '' }
+  form.value = { title: '', description: '', classGroupId: null, dueTime: '' }
   await load()
+}
+
+async function loadClassGroups() {
+  try {
+    const resp = await axios.get('/api/class-groups')
+    classGroups.value = resp.data
+  } catch (e) { /* ignore */ }
 }
 
 async function publishAssignment(id) {
@@ -121,7 +133,10 @@ function statusLabel(s) { return { DRAFT: '草稿', PUBLISHED: '进行中', CLOS
 function statusBadge(s) { return { DRAFT: 'badge-gray', PUBLISHED: 'badge-green', CLOSED: 'badge-red' }[s] || 'badge-gray' }
 function fmtDate(d) { return new Date(d).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadClassGroups()
+})
 </script>
 
 <style scoped>

@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/goals")
@@ -59,6 +60,42 @@ public class GoalController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         goalService.deleteGoal(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ====== 多对多学生分配 ======
+
+    /**
+     * 获取目标已分配的学生 ID 列表
+     */
+    @GetMapping("/{id}/assignees")
+    public ResponseEntity<List<Long>> getAssignees(@PathVariable Long id) {
+        return ResponseEntity.ok(goalService.listAssignedStudentIds(id));
+    }
+
+    /**
+     * 单个追加分配:body: { studentId: 12 }
+     */
+    @PostMapping("/{id}/assignees")
+    public ResponseEntity<Void> addAssignee(
+            @PathVariable Long id,
+            @RequestBody Map<String, Long> body) {
+        Long studentId = body.get("studentId");
+        if (studentId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        goalService.assignStudent(id, studentId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 取消单个学生分配
+     */
+    @DeleteMapping("/{id}/assignees/{studentId}")
+    public ResponseEntity<Void> removeAssignee(
+            @PathVariable Long id,
+            @PathVariable Long studentId) {
+        goalService.unassignStudent(id, studentId);
         return ResponseEntity.noContent().build();
     }
 }

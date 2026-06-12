@@ -1,16 +1,24 @@
 package com.example.goal.service;
 
+import com.example.entity.User;
 import com.example.goal.dto.GoalDto.GoalRequest;
 import com.example.goal.dto.GoalDto.GoalResponse;
 import com.example.goal.dto.GoalDto.GoalStatsResponse;
 import com.example.goal.entity.Goal;
+import com.example.goal.entity.GoalAssignee;
 import com.example.goal.entity.GoalStatus;
+import com.example.goal.repository.GoalAssigneeRepository;
 import com.example.goal.repository.GoalRepository;
+import com.example.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,6 +27,8 @@ import java.util.stream.Collectors;
 public class GoalService {
 
     private final GoalRepository goalRepository;
+    private final GoalAssigneeRepository goalAssigneeRepository;
+    private final UserRepository userRepository;
 
     public List<GoalResponse> listParentGoals(String status, String keyword) {
         List<Goal> goals;
@@ -38,11 +48,9 @@ public class GoalService {
      */
     public List<GoalResponse> loadSubGoals(Long parentId, Integer depth) {
         if (depth == null || depth <= 1) {
-            // 只加载直接子目标
             List<Goal> subs = goalRepository.findByParentIdOrderByPlannedStartAsc(parentId);
             return subs.stream().map(this::toResponse).collect(Collectors.toList());
         } else {
-            // 加载指定深度的子孙目标
             List<Goal> descendants = goalRepository.findDescendantsWithinDepth(parentId, depth);
             return descendants.stream().map(this::toResponse).collect(Collectors.toList());
         }
@@ -56,21 +64,23 @@ public class GoalService {
     public GoalResponse createGoal(GoalRequest req) {
         Goal goal = new Goal();
         applyRequest(goal, req);
-        // 设置层级深度
         if (goal.getParent() != null) {
             goal.setDepth(goal.getParent().getDepth() + 1);
         } else {
             goal.setDepth(1);
         }
-        goalRepository.save(goal);
-        return toResponse(goal);
+        Goal saved = goalRepository.save(goal);
+        // 处理多对多学生分配
+        if (req.getAssigneeIds() != null) {
+            replaceAssignees(saved, req.getAssigneeIds());
+        }
+        return toResponse(saved);
     }
 
     @Transactional
     public GoalResponse updateGoal(Long id, GoalRequest req) {
         Goal goal = findOrThrow(id);
         applyRequest(goal, req);
-        // 更新层级深度
         if (goal.getParent() != null) {
             goal.setDepth(goal.getParent().getDepth() + 1);
         } else {
@@ -79,8 +89,12 @@ public class GoalService {
         if (!goal.getSubGoals().isEmpty()) {
             recalcFromSubs(goal);
         }
-        goalRepository.save(goal);
-        return toResponse(goal);
+        Goal saved = goalRepository.save(goal);
+        // 处理多对多学生分配(仅当请求中显式给了 assigneeIds 字段)
+        if (req.getAssigneeIds() != null) {
+            replaceAssignees(saved, req.getAssigneeIds());
+        }
+        return toResponse(saved);
     }
 
     @Transactional
@@ -100,6 +114,75 @@ public class GoalService {
         return stats;
     }
 
+    // ====== 多对多学生分配 ======
+
+    /**
+     * 用传入的学生 ID 集合完整替换目标的分配关系。
+     * null/空表示清空(若 null 则保留原状;调用方控制)。
+     */
+    private void replaceAssignees(Goal goal, List<Long> studentIds) {
+        // 先清空旧的
+        List<GoalAssignee> existing = goalAssigneeRepository.findByGoal(goal);
+        if (!existing.isEmpty()) {
+            goalAssigneeRepository.deleteAll(existing);
+            goalAssigneeRepository.flush();
+        }
+        if (studentIds == null || studentIds.isEmpty()) {
+            goal.getAssignees().clear();
+            return;
+        }
+        // 去重,避免重复插入
+        Set<Long> dedup = new HashSet<>(studentIds);
+        for (Long sid : dedup) {
+            User student = userRepository.findById(sid)
+                    .orElseThrow(() -> new RuntimeException("学生不存在: " + sid));
+            GoalAssignee ga = new GoalAssignee();
+            ga.setGoal(goal);
+            ga.setStudent(student);
+            goalAssigneeRepository.save(ga);
+            goal.getAssignees().add(ga);
+        }
+    }
+
+    /**
+     * 单个追加分配(供 controller / 后续扩展使用)。
+     */
+    @Transactional
+    public void assignStudent(Long goalId, Long studentId) {
+        Goal goal = findOrThrow(goalId);
+        User student = userRepository.findById(studentId)
+                .orElseThrow(() -> new RuntimeException("学生不存在: " + studentId));
+        if (goalAssigneeRepository.existsByGoalAndStudent(goal, student)) {
+            return;
+        }
+        GoalAssignee ga = new GoalAssignee();
+        ga.setGoal(goal);
+        ga.setStudent(student);
+        goalAssigneeRepository.save(ga);
+        goal.getAssignees().add(ga);
+    }
+
+    /**
+     * 取消单个分配。
+     */
+    @Transactional
+    public void unassignStudent(Long goalId, Long studentId) {
+        Goal goal = findOrThrow(goalId);
+        User student = userRepository.findById(studentId)
+                .orElseThrow(() -> new RuntimeException("学生不存在: " + studentId));
+        goalAssigneeRepository.deleteByGoalAndStudent(goal, student);
+        goal.getAssignees().removeIf(a -> a.getStudent().getId().equals(studentId));
+    }
+
+    public List<Long> listAssignedStudentIds(Long goalId) {
+        Goal goal = findOrThrow(goalId);
+        return goalAssigneeRepository.findByGoal(goal).stream()
+                .map(a -> a.getStudent().getId())
+                .collect(Collectors.toList());
+    }
+
+    // ====== 内部 ======
+
     private void applyRequest(Goal goal, GoalRequest req) {
         goal.setTitle(req.getTitle());
         goal.setDescription(req.getDescription());
@@ -115,11 +198,14 @@ public class GoalService {
         } else {
             goal.setParent(null);
         }
+        // 单值 assignee(向后兼容)
+        if (req.getAssigneeId() != null) {
+            User assignee = userRepository.findById(req.getAssigneeId())
+                    .orElseThrow(() -> new RuntimeException("用户不存在: " + req.getAssigneeId()));
+            goal.setAssignee(assignee);
+        }
     }
 
-    /**
-     * 递归加权计算进度和状态，权重随层级递减（如1.0, 0.8, 0.6, 0.4）。
-     */
     private void recalcFromSubs(Goal parent) {
         List<Goal> subs = parent.getSubGoals();
         if (subs.isEmpty()) return;
@@ -151,9 +237,6 @@ public class GoalService {
         parent.setStatus(derived);
     }
 
-    /**
-     * 递归加权进度计算，depthLevel从1开始。
-     */
     private double calcProgressRecursive(Goal goal, int depthLevel, double[] weights) {
         if (goal.getSubGoals().isEmpty() || depthLevel > weights.length) {
             return goal.getProgress() * weights[Math.min(depthLevel - 1, weights.length - 1)];
@@ -168,7 +251,6 @@ public class GoalService {
     }
 
     private int calcProgress(Goal g) {
-        // 递归加权进度
         double[] weights = {1.0, 0.8, 0.6, 0.4};
         return (int) Math.round(calcProgressRecursive(g, 1, weights));
     }
@@ -199,7 +281,35 @@ public class GoalService {
         r.setParentId(g.getParent() != null ? g.getParent().getId() : null);
         r.setCreatedAt(g.getCreatedAt());
         r.setUpdatedAt(g.getUpdatedAt());
-        r.setSubGoals(g.getSubGoals().stream().map(this::toResponse).collect(Collectors.toList()));
+        List<Goal> subGoals = g.getSubGoals();
+        if (subGoals == null || subGoals.isEmpty()) {
+            r.setSubGoals(Collections.emptyList());
+        } else {
+            r.setSubGoals(subGoals.stream().map(this::toResponse).collect(Collectors.toList()));
+        }
+        if (g.getManager() != null) {
+            r.setManagerId(g.getManager().getId());
+            r.setManagerName(g.getManager().getRealName());
+        }
+        if (g.getAssignee() != null) {
+            r.setAssigneeId(g.getAssignee().getId());
+            r.setAssigneeName(g.getAssignee().getRealName());
+        }
+        // 多对多学生分配
+        List<GoalAssignee> assignees = goalAssigneeRepository.findByGoal(g);
+        if (assignees != null && !assignees.isEmpty()) {
+            r.setAssigneeIds(new ArrayList<>());
+            r.setAssigneeNames(new ArrayList<>());
+            for (GoalAssignee ga : assignees) {
+                if (ga.getStudent() != null) {
+                    r.getAssigneeIds().add(ga.getStudent().getId());
+                    r.getAssigneeNames().add(ga.getStudent().getRealName());
+                }
+            }
+        } else {
+            r.setAssigneeIds(Collections.emptyList());
+            r.setAssigneeNames(Collections.emptyList());
+        }
         return r;
     }
 

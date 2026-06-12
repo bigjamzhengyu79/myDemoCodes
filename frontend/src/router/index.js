@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import UserList from '../views/UserList.vue'
+import ClassGroupList from '../views/ClassGroupList.vue'
 import GoalView from '../views/GoalView.vue'
 import UnitTestView from '../views/UnitTestView.vue'
 import LoginView from '../views/homework/LoginView.vue'
@@ -16,6 +17,7 @@ import { useAuthStore } from '../store/auth'
 const routes = [
   { path: '/', component: Home },
   { path: '/users', component: UserList },
+  { path: '/class-groups', component: ClassGroupList },
   { path: '/math-goals', redirect: '/goals' },
   { path: '/goals', component: GoalView },
   { path: '/unit-test', component: UnitTestView },
@@ -41,13 +43,23 @@ const router = createRouter({
   routes
 })
 
+// 需要管理员角色的路由
+const adminRoutes = ['/users', '/class-groups']
+
 router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
+
+  // 需登录的路由
   if (to.meta.requiresAuth && !auth.isAuthenticated()) {
-    next('/login')
-  } else {
-    next()
+    return next('/login')
   }
+
+  // 管理员专用路由
+  if (adminRoutes.includes(to.path) && !auth.isAdmin()) {
+    return next('/')
+  }
+
+  next()
 })
 
 export default router

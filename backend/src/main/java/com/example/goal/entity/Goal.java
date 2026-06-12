@@ -1,5 +1,6 @@
 package com.example.goal.entity;
 
+import com.example.entity.User;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -45,8 +46,29 @@ public class Goal {
     @OrderBy("plannedStart ASC")
     private List<Goal> subGoals = new ArrayList<>();
 
+    /**
+     * 被分配的学生(多对多)。
+     * 区分于 assignee 字段(单一“负责人”语义),本字段表示"分给哪些学生”。
+     */
+    @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<GoalAssignee> assignees = new ArrayList<>();
+
     @Column(length = 500)
     private String owners;
+
+    /**
+     * 目标设定者（老师）
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manager_id")
+    private User manager;
+
+    /**
+     * 目标负责人（学生）
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assignee_id")
+    private User assignee;
 
     /**
      * 层级深度，根目标为1，子目标依次+1，最大支持4层。
