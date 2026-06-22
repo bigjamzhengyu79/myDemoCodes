@@ -1,10 +1,8 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
 
-console.log('API BASE URL:', import.meta.env.VITE_API_BASE_URL)
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL + '/api' : '/api',  // ✅ 读取环境变量
-  //baseURL: '/api',  // ✅ 读取环境变量
+  baseURL: import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL + '/api' : '/api',
   timeout: 10000
 })
 
@@ -52,4 +50,10 @@ export const questionApi = {
 export const gradingApi = {
   pending: () => api.get('/grading/pending').then(wrapResponse),
   grade: (payload) => api.post('/grading/grade', payload).then(wrapResponse)
+}
+
+export const classGroupApi = {
+  list: () => api.get('/class-groups').then(res => res.data),
+  get: (id) => api.get(`/class-groups/${id}`).then(res => res.data),
+  getStudents: (id) => api.get(`/class-groups/${id}/students`).then(res => res.data)
 }

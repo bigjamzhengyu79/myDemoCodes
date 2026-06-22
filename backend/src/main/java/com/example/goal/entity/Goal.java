@@ -1,5 +1,6 @@
 package com.example.goal.entity;
 
+import com.example.entity.ClassGroup;
 import com.example.entity.User;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -48,10 +49,29 @@ public class Goal {
 
     /**
      * 被分配的学生(多对多)。
-     * 区分于 assignee 字段(单一“负责人”语义),本字段表示"分给哪些学生”。
+     * 区分于 assignee 字段(单一"负责人"语义),本字段表示"分给哪些学生"。
      */
     @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<GoalAssignee> assignees = new ArrayList<>();
+
+    /**
+     * 目标关联的作业（多对多）。
+     */
+    @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<GoalAssignment> goalAssignments = new ArrayList<>();
+
+    /**
+     * 目标评论（一对多）。
+     */
+    @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<GoalComment> goalComments = new ArrayList<>();
+
+    /**
+     * 目标关联的班级。设置后若未指定具体学生，则默认分配给班内所有学生。
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_group_id")
+    private ClassGroup classGroup;
 
     @Column(length = 500)
     private String owners;

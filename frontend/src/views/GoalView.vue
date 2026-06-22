@@ -5,7 +5,10 @@
         <h1 class="page-title">学习目标管理</h1>
         <p class="page-sub">父目标可分解为若干子目标，进度自动汇总</p>
       </div>
-      <button class="btn-add" @click="openCreate">+ 新增父目标</button>
+      <div v-if="store.isTeacherView" class="flex gap-2">
+        <button class="btn-add" @click="$router.push('/goals/student-progress')">📊 学生执行情况</button>
+        <button class="btn-add" @click="openCreate">+ 新增父目标</button>
+      </div>
     </div>
 
     <div class="stats-grid">
@@ -52,11 +55,13 @@
         v-for="goal in store.filteredGoals"
         :key="goal.id"
         :goal="goal"
+        :is-teacher="store.isTeacherView"
         @edit="openEdit"
         @delete="handleDelete"
         @addSub="handleAddSub"
         @editSub="openEditSub"
         @deleteSub="handleDeleteSub"
+        @update-my-progress="handleUpdateMyProgress"
       />
     </div>
 
@@ -75,10 +80,12 @@
 import { reactive, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGoalStore } from '@/stores/goalStore'
+import { useAuthStore } from '@/store/auth'
 import GoalCard from '@/components/GoalCard.vue'
 import GoalModal from '@/components/GoalModal.vue'
 
 const store = useGoalStore()
+const authStore = useAuthStore()
 const { stats } = storeToRefs(store)
 
 onMounted(() => store.fetchGoals())
@@ -126,7 +133,6 @@ function openAddSub(parentGoal) {
 }
 
 function handleAddSub(targetGoal) {
-  // targetGoal 可能是父目标或子目标
   modal.goalData = null
   modal.parentId = targetGoal.id
   modal.parentTitle = targetGoal.title
@@ -141,12 +147,16 @@ function openEditSub({ parentId, sub }) {
 }
 
 async function handleSaved({ id, payload }) {
-  if (id) {
-    await store.updateGoal(id, payload)
-  } else {
-    await store.createGoal(payload)
+  try {
+    if (id) {
+      await store.updateGoal(id, payload)
+    } else {
+      await store.createGoal(payload)
+    }
+    modal.visible = false
+  } catch (e) {
+    alert('保存失败：' + (e.message || '未知错误'))
   }
-  modal.visible = false
 }
 
 async function handleDelete(id) {
@@ -159,6 +169,15 @@ async function handleDeleteSub({ subId }) {
   if (confirm('确认删除该子目标？')) {
     await store.deleteGoal(subId)
   }
+}
+
+async function handleUpdateMyProgress({ goalId, progress, status, actualStart, actualEnd }) {
+  const data = {}
+  if (progress !== undefined && progress !== null) data.progress = progress
+  if (status) data.status = status
+  if (actualStart !== undefined) data.actualStart = actualStart
+  if (actualEnd !== undefined) data.actualEnd = actualEnd
+  await store.updateMyProgress(goalId, data)
 }
 </script>
 

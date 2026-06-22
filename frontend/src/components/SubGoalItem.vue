@@ -8,7 +8,6 @@
       </div>
       <div class="h-line"></div>
 
-      <!-- 子目标头部（可点击展开/收起） -->
       <div class="sub-header" @click="toggleExpanded">
         <span class="sub-toggle" v-if="goal.subGoals?.length > 0">{{ isExpanded ? '▾' : '▸' }}</span>
 
@@ -24,17 +23,94 @@
             <span v-if="goal.actualStart">实际开始：{{ goal.actualStart }}</span>
             <span v-if="goal.actualEnd">实际完成：{{ goal.actualEnd }}</span>
             <span>实施者：{{ goal.owners || '—' }}</span>
+            <span v-if="goal.classGroupName" class="class-badge">{{ goal.classGroupName }}</span>
           </div>
           <div class="progress-row" style="margin-top:6px">
             <div class="bar-bg" style="height:3px">
               <div class="bar-fill" :class="`fill-${goal.status.toLowerCase()}`"
-                   :style="{ width: goal.progress + '%' }" style="height:100%"></div>
+                   :style="{ width: progressPercent + '%' }" style="height:100%"></div>
             </div>
-            <span class="pct" style="font-size:10px">{{ goal.progress }}%</span>
+            <span class="pct" style="font-size:10px">{{ progressPercent }}%</span>
+          </div>
+
+          <!-- 学生扩展区域 -->
+          <div v-if="!isTeacher && goal.studentProgress !== undefined" class="sub-student-section" @click.stop>
+            <div class="sub-my-progress">
+              <div class="my-progress-row" style="margin-top:4px">
+                <span class="my-progress-label">我的进度：</span>
+                <input type="range" min="0" max="100" step="5"
+                  :value="goal.studentProgress" @input="onMyProgressChange($event.target.value)"
+                  class="my-progress-slider" />
+                <span class="pct" style="font-size:10px">{{ goal.studentProgress }}%</span>
+              </div>
+              <div class="my-dates-row">
+                <label class="date-label">开始：</label>
+                <input type="date" :value="goal.myActualStart" @change="onActualStartChange" class="date-input" />
+                <label class="date-label">完成：</label>
+                <input type="date" :value="goal.myActualEnd" @change="onActualEndChange" class="date-input" />
+              </div>
+            </div>
+
+            <div v-if="goal.assignmentIds?.length" class="sub-assignments-row">
+              <span class="sec-label">📝 作业：</span>
+              <span v-for="(aid, i) in goal.assignmentIds" :key="aid" class="assignment-link">
+                <a :href="`/assignments/${aid}/do`" target="_blank" @click.stop>
+                  {{ goal.assignmentTitles?.[i] || '#' + aid }}
+                </a>
+                <span v-if="i < goal.assignmentIds.length - 1">、</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- 公开评论区（老师和学生共用） -->
+          <div class="sub-comments-section" @click.stop>
+            <button class="btn-comment-toggle" @click="commentsExpanded = !commentsExpanded">
+              💬 公开讨论（{{ localComments.length }}）{{ commentsExpanded ? '▾' : '▸' }}
+            </button>
+            <Transition name="slide">
+              <div v-if="commentsExpanded" class="comments-body">
+                <div v-if="localComments.length" class="comment-list">
+                  <div v-for="c in localComments" :key="c.id" class="comment-item">
+                    <div class="comment-meta">
+                      <span class="comment-author">
+                        <span :class="['author-role', c.authorRole === 'TEACHER' ? 'teacher' : 'student']">
+                          {{ c.authorRole === 'TEACHER' ? '老师' : '学生' }}
+                        </span>
+                        {{ c.authorName || c.studentName }}
+                      </span>
+                      <span>{{ fmtTime(c.createdAt) }}</span>
+                      <button v-if="c.own" class="comment-del" @click="deleteComment(c.id)">删除</button>
+                    </div>
+                    <div class="comment-content" v-html="renderLatex(c.content)"></div>
+                    <div v-if="c.imageUrls?.length" class="comment-attachments">
+                      <a v-for="(file, j) in getAttachments(c.imageUrls)" :key="j"
+                         :href="file.url" class="attachment-link" download target="_blank">📎 {{ file.name }}</a>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="comment-empty">暂无讨论</div>
+                <div v-if="canWriteComment" class="comment-input-area">
+                  <textarea v-model="newComment" placeholder="输入评论…" rows="2"></textarea>
+                  <div v-if="uploadedFiles.length" class="file-preview-list">
+                    <div v-for="(f, i) in uploadedFiles" :key="i" class="file-preview-item">
+                      <span class="file-preview-icon">📎</span>
+                      <span class="file-preview-name">{{ f.name }}</span>
+                      <span class="file-preview-size">{{ formatFileSize(f.size) }}</span>
+                      <button class="file-preview-remove" @click="removeFile(i)">✕</button>
+                    </div>
+                  </div>
+                  <div class="comment-actions">
+                    <button class="btn-upload" @click="triggerUpload">📎 附件</button>
+                    <input ref="fileInput" type="file" multiple style="display:none" @change="onUploadFiles" />
+                    <button class="btn-send" :disabled="!newComment.trim() && !uploadedFiles.length" @click="submitComment">发送</button>
+                  </div>
+                </div>
+              </div>
+            </Transition>
           </div>
         </div>
 
-        <div class="sub-actions" @click.stop>
+        <div v-if="isTeacher" class="sub-actions" @click.stop>
           <button class="btn-icon btn-add-sub" @click="$emit('addSub', goal)">+ 子</button>
           <button class="btn-icon" @click="$emit('editSub', { parentId: parentId, sub: goal })">编辑</button>
           <button class="btn-icon" @click="$emit('deleteSub', { parentId: parentId, subId: goal.id })">删除</button>
@@ -42,7 +118,6 @@
       </div>
     </div>
 
-    <!-- 嵌套子目标列表（可展开/收起） -->
     <Transition name="slide">
       <div v-if="isExpanded && goal.subGoals?.length > 0" class="nested-sub-list">
         <SubGoalItem
@@ -51,9 +126,11 @@
           :goal="subGoal"
           :parent-id="goal.id"
           :is-last="idx === goal.subGoals.length - 1"
+          :is-teacher="isTeacher"
           @add-sub="$emit('addSub', $event)"
           @edit-sub="$emit('editSub', $event)"
           @delete-sub="$emit('deleteSub', $event)"
+          @update-my-progress="$emit('updateMyProgress', $event)"
         />
       </div>
     </Transition>
@@ -61,7 +138,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 import SubGoalItem from './SubGoalItem.vue'
 import { useGoalStore } from '@/stores/goalStore'
@@ -70,22 +147,150 @@ const props = defineProps({
   goal: { type: Object, required: true },
   parentId: { type: Number, required: true },
   isLast: { type: Boolean, default: false },
+  isTeacher: { type: Boolean, default: true },
 })
 
-const emit = defineEmits(['addSub', 'editSub', 'deleteSub'])
+const emit = defineEmits(['addSub', 'editSub', 'deleteSub', 'updateMyProgress'])
 
 const goalStore = useGoalStore()
 const isExpanded = computed(() => goalStore.expandedGoals.has(props.goal.id))
+const commentsExpanded = ref(false)
+const newComment = ref('')
+const fileInput = ref(null)
+const localComments = ref([])
+const uploadedFiles = ref([])
+
+const canWriteComment = computed(() => {
+  if (props.isTeacher) {
+    return props.goal.canComment || false
+  }
+  return props.goal.studentProgress !== undefined
+})
+
+watch(() => props.goal.id, async () => {
+  // 有条件加载评论：老师仅在有评论权限时（自己创建的目标），学生仅在被分配时
+  if (props.isTeacher && !props.goal.canComment) return
+  if (!props.isTeacher && props.goal.studentProgress === undefined) return
+  await loadComments()
+}, { immediate: true })
+
+async function loadComments() {
+  try {
+    localComments.value = await goalStore.fetchComments(props.goal.id)
+  } catch {
+    localComments.value = []
+  }
+}
 
 function toggleExpanded() {
   goalStore.toggleExpanded(props.goal.id)
 }
+
+const progressPercent = computed(() => {
+  if (!props.isTeacher && props.goal.studentProgress !== undefined) {
+    return props.goal.studentProgress
+  }
+  return props.goal.progress || 0
+})
+
+function onMyProgressChange(val) {
+  emit('updateMyProgress', { goalId: props.goal.id, progress: parseInt(val), status: null })
+}
+
+function onActualStartChange(e) {
+  emit('updateMyProgress', { goalId: props.goal.id, actualStart: e.target.value || null })
+}
+
+function onActualEndChange(e) {
+  emit('updateMyProgress', { goalId: props.goal.id, actualEnd: e.target.value || null })
+}
+
+async function submitComment() {
+  if (!newComment.value.trim() && !uploadedFiles.value.length) return
+  try {
+    const attachmentUrls = uploadedFiles.value.map(f => f.url)
+    await goalStore.addComment(props.goal.id, {
+      content: newComment.value,
+      imageUrls: attachmentUrls,
+      attachmentNames: uploadedFiles.value.map(f => f.name),
+    })
+    newComment.value = ''
+    uploadedFiles.value = []
+    await loadComments()
+  } catch (e) {
+    alert('评论发送失败')
+  }
+}
+
+async function deleteComment(commentId) {
+  if (!confirm('确认删除？')) return
+  try {
+    await goalStore.deleteComment(props.goal.id, commentId)
+    await loadComments()
+  } catch (e) {
+    alert('删除失败')
+  }
+}
+
+function triggerUpload() { fileInput.value?.click() }
+
+async function onUploadFiles(e) {
+  const files = [...e.target.files]
+  if (!files.length) return
+  try {
+    const { goalApi } = await import('@/api/goalApi')
+    for (const file of files) {
+      const result = await goalApi.uploadFile(file)
+      if (result.url) {
+        uploadedFiles.value.push({ url: result.url, name: result.originalName || file.name, size: file.size })
+      }
+    }
+  } catch (err) { alert('文件上传失败') }
+  e.target.value = ''
+}
+
+function removeFile(index) { uploadedFiles.value.splice(index, 1) }
+
+function getAttachments(imageUrls) {
+  if (!imageUrls || !imageUrls.length) return []
+  return imageUrls.map((item, idx) => {
+    if (typeof item === 'string') {
+      const sepIdx = item.lastIndexOf('::')
+      if (sepIdx > 0 && sepIdx + 2 < item.length) {
+        return { url: item.substring(0, sepIdx), name: item.substring(sepIdx + 2) }
+      }
+      return { url: item, name: extractFileName(item) || `附件 ${idx + 1}` }
+    }
+    return { url: item.url || item, name: item.name || extractFileName(item.url) || `附件 ${idx + 1}` }
+  })
+}
+
+function extractFileName(url) {
+  if (!url) return ''
+  const parts = url.split('/')
+  return parts[parts.length - 1] || ''
+}
+
+function formatFileSize(bytes) {
+  if (!bytes || bytes === 0) return ''
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+function fmtTime(d) {
+  if (!d) return ''
+  return new Date(d).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function renderLatex(text) {
+  if (!text) return ''
+  return text.replace(/\n/g, '<br>')
+}
 </script>
 
 <style scoped>
-.sub-node {
-  width: 100%;
-}
+.sub-node { width: 100%; }
 .sub-item {
   display: flex; align-items: flex-start; gap: 0;
   padding: 10px 16px; border-top: 0.5px solid #f0f0ee;
@@ -117,6 +322,10 @@ function toggleExpanded() {
 .sub-depth { font-size: 10px; color: #666; background: #f0f8ff; border-radius: 6px; padding: 1px 5px; }
 .sub-desc { font-size: 11px; color: #888; margin-bottom: 5px; line-height: 1.5; }
 .sub-meta { display: flex; gap: 12px; font-size: 11px; color: #888; flex-wrap: wrap; }
+.sub-meta .class-badge {
+  background: #e8f4fd; color: #185FA5; border-radius: 6px;
+  padding: 0 5px; font-size: 10px; font-weight: 500;
+}
 .sub-actions { display: flex; gap: 4px; flex-shrink: 0; margin-top: 2px; }
 .btn-icon {
   border: 0.5px solid #e0e0e0; background: transparent;
@@ -132,4 +341,77 @@ function toggleExpanded() {
 .slide-enter-active, .slide-leave-active { transition: max-height .2s ease, opacity .2s ease; overflow: hidden; }
 .slide-enter-from, .slide-leave-to { max-height: 0; opacity: 0; }
 .slide-enter-to, .slide-leave-from { max-height: 2000px; opacity: 1; }
+
+/* 学生区域 */
+.sub-student-section { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.my-progress-row {
+  display: flex; align-items: center; gap: 8px;
+  background: #f0faf5; border-radius: 6px; padding: 3px 8px;
+}
+.my-progress-label { font-size: 10px; color: #0F6E56; font-weight: 500; white-space: nowrap; }
+.my-progress-slider { flex: 1; height: 3px; cursor: pointer; }
+.my-dates-row { display: flex; align-items: center; gap: 4px; background: #fafafa; border-radius: 4px; padding: 2px 6px; }
+.date-label { font-size: 10px; color: #888; }
+.date-input { border: 0.5px solid #ccc; border-radius: 3px; padding: 1px 4px; font-size: 10px; width: 95px; }
+.sub-assignments-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; background: #fafafa; border-radius: 4px; padding: 2px 6px; }
+.sec-label { font-size: 11px; color: #555; }
+.assignment-link a { color: #185FA5; font-size: 11px; text-decoration: none; }
+.assignment-link a:hover { text-decoration: underline; }
+.pct { font-size: 10px; color: #888; min-width: 24px; text-align: right; }
+
+/* 公开讨论区 */
+.sub-comments-section { margin-top: 2px; }
+.btn-comment-toggle {
+  border: none; background: #f5f5f3; border-radius: 4px;
+  padding: 2px 8px; font-size: 10px; cursor: pointer; color: #555;
+}
+.btn-comment-toggle:hover { background: #e8e8e8; }
+.comments-body { padding: 6px 8px; border: 0.5px solid #eee; border-radius: 6px; margin-top: 4px; background: #fafafa; }
+.comment-list { margin-bottom: 6px; }
+.comment-item { margin-bottom: 6px; padding-bottom: 4px; border-bottom: 0.5px solid #f0f0ee; }
+.comment-item:last-child { border-bottom: none; }
+.comment-meta { font-size: 10px; color: #aaa; display: flex; justify-content: space-between; align-items: center; }
+.comment-author { display: flex; align-items: center; gap: 3px; }
+.author-role { font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: 500; }
+.author-role.teacher { background: #e8f4fd; color: #185FA5; }
+.author-role.student { background: #E1F5EE; color: #0F6E56; }
+.comment-del { border: none; background: none; color: #e24b4a; cursor: pointer; font-size: 10px; }
+.comment-content { font-size: 11px; color: #333; margin: 2px 0; line-height: 1.4; }
+.comment-attachments { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
+.attachment-link {
+  display: inline-flex; align-items: center; gap: 2px;
+  font-size: 10px; color: #185FA5; text-decoration: none;
+  background: #f0f6ff; padding: 1px 6px; border-radius: 3px;
+}
+.attachment-link:hover { background: #dce8f8; text-decoration: underline; }
+.comment-empty { font-size: 10px; color: #aaa; text-align: center; padding: 4px 0; }
+.comment-input-area { border-top: 0.5px solid #eee; padding-top: 4px; }
+.comment-input-area textarea {
+  width: 100%; border: 0.5px solid #ccc; border-radius: 4px; padding: 3px 6px;
+  font-size: 11px; resize: vertical; box-sizing: border-box;
+}
+.file-preview-list {
+  display: flex; flex-direction: column; gap: 3px;
+  margin: 4px 0; max-height: 100px; overflow-y: auto;
+}
+.file-preview-item {
+  display: flex; align-items: center; gap: 4px;
+  background: #f5f7fa; border: 0.5px solid #e0e4e8; border-radius: 4px;
+  padding: 2px 6px; font-size: 10px;
+}
+.file-preview-icon { font-size: 11px; }
+.file-preview-name { flex: 1; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-preview-size { color: #999; font-size: 9px; white-space: nowrap; }
+.file-preview-remove {
+  border: none; background: none; color: #e24b4a; cursor: pointer; font-size: 11px; padding: 0 2px;
+}
+.file-preview-remove:hover { color: #c0392b; }
+.comment-actions { display: flex; gap: 4px; justify-content: flex-end; margin-top: 3px; }
+.btn-upload, .btn-send {
+  border: 0.5px solid #ccc; border-radius: 4px; padding: 2px 8px;
+  font-size: 10px; cursor: pointer; background: #fff; color: #666;
+}
+.btn-send { background: #1D9E75; color: #fff; border-color: #1D9E75; }
+.btn-send:hover { background: #0F6E56; }
+.btn-send:disabled { opacity: .5; cursor: not-allowed; }
 </style>

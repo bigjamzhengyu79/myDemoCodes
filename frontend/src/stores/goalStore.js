@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { goalApi } from '@/api/goalApi'
+import { useAuthStore } from '@/store/auth'
 
 export const useGoalStore = defineStore('goal', () => {
   const goals = ref([])
@@ -8,8 +9,17 @@ export const useGoalStore = defineStore('goal', () => {
   const loading = ref(false)
   const filterStatus = ref('ALL')
   const keyword = ref('')
-  const expandedGoals = ref(new Set()) // 记录已展开的目标ID
-  const loadedDepths = ref(new Map()) // 记录各目标已加载的深度
+  const expandedGoals = ref(new Set())
+  const loadedDepths = ref(new Map())
+  // 评论缓存：key=goalId
+  const comments = ref({})
+  // 学生概览缓存
+  const studentOverviews = ref({})
+
+  // 当前用户的角色
+  const authStore = useAuthStore()
+  const isTeacherView = computed(() => authStore.isTeacher() || authStore.isAdmin())
+  const isStudentView = computed(() => !authStore.isTeacher() && !authStore.isAdmin())
 
   const filteredGoals = computed(() => {
     return goals.value.filter(g => {
@@ -26,10 +36,15 @@ export const useGoalStore = defineStore('goal', () => {
   async function fetchGoals() {
     loading.value = true
     try {
-      goals.value = await goalApi.list()
+      if (isStudentView.value) {
+        // 学生只看分配给我的目标
+        goals.value = await goalApi.listMy()
+      } else {
+        goals.value = await goalApi.list()
+      }
       stats.value = await goalApi.stats()
-      
-      // 设置默认展开状态：有子目标的目标默认展开
+
+      // 设置默认展开状态
       goals.value.forEach(goal => {
         if (goal.subGoals && goal.subGoals.length > 0) {
           expandedGoals.value.add(goal.id)
@@ -43,7 +58,6 @@ export const useGoalStore = defineStore('goal', () => {
   async function createGoal(data) {
     const result = await goalApi.create(data)
     await fetchGoals()
-    // 如果新创建的目标有子目标，设置为展开状态
     if (result.subGoals && result.subGoals.length > 0) {
       expandedGoals.value.add(result.id)
     }
@@ -53,7 +67,6 @@ export const useGoalStore = defineStore('goal', () => {
   async function updateGoal(id, data) {
     const result = await goalApi.update(id, data)
     await fetchGoals()
-    // 如果更新后的目标有子目标，设置为展开状态
     if (result.subGoals && result.subGoals.length > 0) {
       expandedGoals.value.add(result.id)
     }
@@ -65,12 +78,53 @@ export const useGoalStore = defineStore('goal', () => {
     await fetchGoals()
   }
 
-  // 按需加载子目标
+  /**
+   * 递归在 goals 树中查找指定 ID 的目标节点并更新其字段
+   */
+  function updateGoalNodeLocally(goalsList, goalId, updates) {
+    for (const g of goalsList) {
+      if (g.id === goalId) {
+        Object.assign(g, updates)
+        return true
+      }
+      if (g.subGoals && g.subGoals.length > 0) {
+        if (updateGoalNodeLocally(g.subGoals, goalId, updates)) return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * 学生更新自己在某个目标上的个人进度（乐观更新，不刷新全量）
+   */
+  async function updateMyProgress(goalId, data) {
+    // 先乐观更新本地数据
+    const updates = {}
+    if (data.progress !== undefined) {
+      updates.studentProgress = data.progress
+    }
+    if (data.actualStart !== undefined) {
+      updates.myActualStart = data.actualStart
+    }
+    if (data.actualEnd !== undefined) {
+      updates.myActualEnd = data.actualEnd
+    }
+    updateGoalNodeLocally(goals.value, goalId, updates)
+
+    // 再调用 API 持久化
+    try {
+      await goalApi.updateMyProgress(goalId, data)
+    } catch (e) {
+      // API 失败时回滚：重新拉取全量数据
+      await fetchGoals()
+      throw e
+    }
+  }
+
   async function loadSubGoals(goalId, depth = 2) {
-    if (loadedDepths.value.get(goalId) >= depth) return // 已加载过
+    if (loadedDepths.value.get(goalId) >= depth) return
     try {
       const subs = await goalApi.loadSubGoals(goalId, depth)
-      // 更新目标的子目标列表
       const goal = goals.value.find(g => g.id === goalId)
       if (goal) {
         goal.subGoals = subs
@@ -81,18 +135,67 @@ export const useGoalStore = defineStore('goal', () => {
     }
   }
 
-  // 切换展开状态
   function toggleExpanded(goalId) {
     if (expandedGoals.value.has(goalId)) {
       expandedGoals.value.delete(goalId)
     } else {
       expandedGoals.value.add(goalId)
-      // 展开时确保子目标已加载（如果还没有加载）
       const goal = goals.value.find(g => g.id === goalId)
       if (goal && (!goal.subGoals || goal.subGoals.length === 0)) {
         loadSubGoals(goalId, 2)
       }
     }
+  }
+
+  // ====== 评论 ======
+
+  async function fetchComments(goalId) {
+    try {
+      const data = await goalApi.getComments(goalId)
+      comments.value[goalId] = data
+      return data
+    } catch (err) {
+      console.error('获取评论失败:', err)
+      return []
+    }
+  }
+
+  async function addComment(goalId, data) {
+    const result = await goalApi.addComment(goalId, data)
+    // 刷新评论列表
+    await fetchComments(goalId)
+    return result
+  }
+
+  async function updateComment(goalId, commentId, data) {
+    const result = await goalApi.updateComment(goalId, commentId, data)
+    await fetchComments(goalId)
+    return result
+  }
+
+  async function deleteComment(goalId, commentId) {
+    await goalApi.deleteComment(goalId, commentId)
+    await fetchComments(goalId)
+  }
+
+  // ====== 学生概览（老师视角） ======
+
+  async function fetchStudentOverview(goalId) {
+    try {
+      const data = await goalApi.getStudentOverview(goalId)
+      studentOverviews.value[goalId] = data
+      return data
+    } catch (err) {
+      console.error('获取学生概览失败:', err)
+      return null
+    }
+  }
+
+  // ====== 关联作业 ======
+
+  async function updateAssignments(goalId, assignmentIds) {
+    await goalApi.updateAssignments(goalId, assignmentIds)
+    await fetchGoals()
   }
 
   return {
@@ -102,13 +205,27 @@ export const useGoalStore = defineStore('goal', () => {
     filterStatus,
     keyword,
     filteredGoals,
+    isTeacherView,
+    isStudentView,
+    comments,
+    studentOverviews,
     fetchGoals,
     createGoal,
     updateGoal,
     deleteGoal,
+    updateMyProgress,
     expandedGoals,
     loadedDepths,
     loadSubGoals,
     toggleExpanded,
+    // 评论
+    fetchComments,
+    addComment,
+    updateComment,
+    deleteComment,
+    // 学生概览
+    fetchStudentOverview,
+    // 关联作业
+    updateAssignments,
   }
 })

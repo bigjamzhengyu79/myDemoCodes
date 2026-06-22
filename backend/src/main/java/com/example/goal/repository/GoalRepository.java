@@ -12,6 +12,8 @@ public interface GoalRepository extends JpaRepository<Goal, Long> {
 
     List<Goal> findByParentIsNullOrderByCreatedAtDesc();
 
+    List<Goal> findByParentIsNullAndManagerIdOrderByCreatedAtDesc(Long managerId);
+
     List<Goal> findByParentIdOrderByPlannedStartAsc(Long parentId);
 
     List<Goal> findByParentIsNullAndStatusOrderByCreatedAtDesc(GoalStatus status);

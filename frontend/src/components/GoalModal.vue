@@ -72,8 +72,28 @@
             </div>
           </div>
 
+          <!-- 关联班级 -->
+          <div class="field-section">关联班级</div>
+          <div class="field">
+            <select v-model="form.classGroupId" class="form-control">
+              <option :value="null">不指定班级</option>
+              <option v-for="cg in classGroups" :key="cg.id" :value="cg.id">{{ cg.name }}</option>
+            </select>
+          </div>
+
           <!-- 分配学生(多对多) -->
-          <div class="field-section">分配学生</div>
+    <!-- 关联作业 -->
+    <div class="field-section">关联作业</div>
+    <div class="field">
+      <select v-model="form.assignmentIds" multiple class="form-control" style="height:auto;min-height:80px">
+        <option v-for="a in assignments" :key="a.id" :value="a.id">
+          {{ a.title }} ({{ a.classGroupName || '全部' }})
+        </option>
+      </select>
+      <div class="text-sm text-muted" style="margin-top:4px;font-size:11px;color:#888">Ctrl+点击可多选，仅显示已发布的作业</div>
+    </div>
+
+    <div class="field-section">分配学生</div>
           <div class="field">
             <div class="assign-students">
               <div class="selected-students" v-if="form.assigneeIds && form.assigneeIds.length">
@@ -138,6 +158,10 @@ const emit = defineEmits(['close', 'saved'])
 
 const saving = ref(false)
 
+const classGroups = ref([])
+
+const assignments = ref([])
+
 const defaultForm = () => ({
   title: '',
   description: '',
@@ -149,6 +173,8 @@ const defaultForm = () => ({
   progress: 0,
   owners: '',
   assigneeIds: [],
+  classGroupId: null,
+  assignmentIds: [],
 })
 
 const form = ref(defaultForm())
@@ -161,6 +187,7 @@ const hasSubGoals = computed(() =>
 
 const allStudents = ref([])
 const studentSearch = ref('')
+const isFilteredByClass = ref(false)
 
 const filteredStudents = computed(() => {
   const kw = studentSearch.value.trim().toLowerCase()
@@ -193,8 +220,9 @@ const removeStudent = (sid) => {
 
 const onStudentSearch = () => { /* 触发 computed */ }
 
+const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
+  baseURL: apiBase + '/api',
   timeout: 10000,
 })
 http.interceptors.request.use(config => {
@@ -206,19 +234,81 @@ http.interceptors.response.use(res => res.data)
 
 async function fetchStudents() {
   try {
-    const resp = await http.get('/users', { params: { role: 'STUDENT' } })
-    allStudents.value = (resp.data || []).map(u => ({
-      id: u.id,
-      realName: u.realName || u.real_name,
-      username: u.username,
-    }))
+    const resp = await http.get('/users')
+    // resp 已是响应体数据（因拦截器 res => res.data）
+    // 只保留 STUDENT 角色的用户
+    allStudents.value = (resp || [])
+      .filter(u => u.role === 'STUDENT')
+      .map(u => ({
+        id: u.id,
+        realName: u.realName || u.real_name,
+        username: u.username,
+      }))
   } catch (e) {
     allStudents.value = []
   }
 }
 
+/**
+ * 根据班级 ID 加载该班学生
+ */
+async function fetchStudentsByClass(classGroupId) {
+  if (!classGroupId) {
+    isFilteredByClass.value = false
+    return fetchStudents()
+  }
+  try {
+    const resp = await http.get(`/class-groups/${classGroupId}/students`)
+    // resp 已是响应体数据
+    const students = resp || []
+    allStudents.value = students.map(u => ({
+      id: u.id,
+      realName: u.realName || u.real_name,
+      username: u.username,
+    }))
+    isFilteredByClass.value = true
+  } catch (e) {
+    allStudents.value = []
+    isFilteredByClass.value = false
+  }
+}
+
+async function fetchClassGroups() {
+  try {
+    const resp = await http.get('/class-groups')
+    // resp 已是响应体数据（因拦截器 res => res.data）
+    classGroups.value = resp || []
+  } catch (e) {
+    classGroups.value = []
+  }
+}
+
+async function fetchAssignments() {
+  try {
+    const resp = await http.get('/assignments')
+    // resp 可能是 {data: [...]} 或 [...] 格式
+    const list = Array.isArray(resp) ? resp : (resp?.data || [])
+    // 只显示已发布的作业
+    assignments.value = list.filter(a => a.status === 'PUBLISHED')
+  } catch (e) {
+    assignments.value = []
+  }
+}
+
 onMounted(() => {
   fetchStudents()
+  fetchClassGroups()
+  fetchAssignments()
+})
+
+// 监听班级选择变化，自动同步学生列表
+watch(() => form.value.classGroupId, async (newVal) => {
+  if (newVal) {
+    await fetchStudentsByClass(newVal)
+  } else {
+    await fetchStudents()
+    isFilteredByClass.value = false
+  }
 })
 
 watch(() => props.visible, (val) => {
@@ -237,6 +327,7 @@ watch(() => props.visible, (val) => {
         assigneeIds: Array.isArray(props.goalData.assigneeIds)
           ? [...props.goalData.assigneeIds]
           : [],
+        classGroupId: props.goalData.classGroupId || null,
       }
     } else {
       form.value = defaultForm()

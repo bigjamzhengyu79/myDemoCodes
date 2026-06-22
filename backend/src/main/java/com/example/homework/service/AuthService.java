@@ -27,7 +27,7 @@ public class AuthService {
             throw new RuntimeException("用户名或密码错误");
         }
 
-        String token = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
+        String token = jwtUtil.generateToken(user.getUsername(), user.getRole().name(), user.getId());
 
         AuthDto.LoginResponse resp = new AuthDto.LoginResponse();
         resp.setToken(token);

@@ -8,10 +8,13 @@ import com.example.homework.repository.*;
 import com.example.repository.ClassGroupRepository;
 import com.example.repository.UserRepository;
 
+import com.example.homework.dto.QuestionDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -95,9 +98,31 @@ public class AssignmentService {
     }
 
     // 获取作业完整题目列表
+    @Transactional(readOnly = true)
     public Assignment getWithQuestions(Long id) {
         return assignmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("作业不存在"));
+    }
+
+    /**
+     * 获取作业详情（含完整的题目列表），在事务内完成所有懒加载访问。
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAssignmentDetail(Long id) {
+        Assignment a = getWithQuestions(id);
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("id", a.getId());
+        resp.put("title", a.getTitle());
+        resp.put("description", a.getDescription() != null ? a.getDescription() : "");
+        resp.put("classGroupId", a.getClassGroup() != null ? a.getClassGroup().getId() : null);
+        resp.put("classGroupName", a.getClassGroup() != null ? a.getClassGroup().getName() : "");
+        resp.put("dueTime", a.getDueTime() != null ? a.getDueTime().toString() : "");
+        resp.put("status", a.getStatus().name());
+        resp.put("questionCount", a.getQuestions().size());
+        resp.put("questions", a.getQuestions().stream()
+                .map(QuestionDto.Response::from)
+                .collect(Collectors.toList()));
+        return resp;
     }
 
 }

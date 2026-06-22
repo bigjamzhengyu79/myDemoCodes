@@ -89,9 +89,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
-import { assignmentApi } from '@/api'
+import { assignmentApi, classGroupApi } from '@/api'
 
 const auth = useAuthStore()
 const assignments = ref([])
@@ -119,8 +118,7 @@ async function createAssignment() {
 
 async function loadClassGroups() {
   try {
-    const resp = await axios.get('/api/class-groups')
-    classGroups.value = resp.data
+    classGroups.value = await classGroupApi.list()
   } catch (e) { /* ignore */ }
 }
 

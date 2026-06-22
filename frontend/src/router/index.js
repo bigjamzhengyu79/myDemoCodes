@@ -3,6 +3,7 @@ import Home from '../views/Home.vue'
 import UserList from '../views/UserList.vue'
 import ClassGroupList from '../views/ClassGroupList.vue'
 import GoalView from '../views/GoalView.vue'
+import GoalStudentProgressView from '../views/GoalStudentProgressView.vue'
 import UnitTestView from '../views/UnitTestView.vue'
 import LoginView from '../views/homework/LoginView.vue'
 import LayoutView from '../views/homework/LayoutView.vue'
@@ -20,6 +21,7 @@ const routes = [
   { path: '/class-groups', component: ClassGroupList },
   { path: '/math-goals', redirect: '/goals' },
   { path: '/goals', component: GoalView },
+  { path: '/goals/student-progress', component: GoalStudentProgressView, meta: { requiresAuth: true } },
   { path: '/unit-test', component: UnitTestView },
   { path: '/login', component: LoginView },
   {
