@@ -38,6 +38,7 @@ public class QuestionDto {
         private String contentLatex;
         private Integer stepScore;
         private String commonErrors;
+        private String imageUrlsJson;  // JSON array of base64 data URLs for step images
     }
 
     @Data
@@ -103,6 +104,7 @@ public class QuestionDto {
         private String contentLatex;
         private Integer stepScore;
         private String commonErrors;
+        private String imageUrlsJson;  // JSON array of base64 data URLs for step images
 
         public static StepResp from(SolutionStep s) {
             StepResp r = new StepResp();
@@ -111,6 +113,7 @@ public class QuestionDto {
             r.contentLatex = s.getContentLatex();
             r.stepScore = s.getStepScore();
             r.commonErrors = s.getCommonErrors();
+            r.imageUrlsJson = s.getImageUrlsJson();
             return r;
         }
     }

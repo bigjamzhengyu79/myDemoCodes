@@ -10,20 +10,20 @@ export default defineConfig({
     }
   },
   server: {
-    // port: 5173,
-    // proxy: {
-    //   '/api': {
-    //     target: 'http://localhost:8080',
-    //     changeOrigin: true,
-    //     rewrite: (path) => path
-    //   }
-    // }
+    port: 5173,
     proxy: {
       '/api': {
-        target: 'https://mydemocodes.onrender.com',  // ← 你的 Render 地址
+        target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: true,
+        rewrite: (path) => path
       }
     }
+    // proxy: {
+    //   '/api': {
+    //     target: 'https://mydemocodes.onrender.com',  // ← 你的 Render 地址
+    //     changeOrigin: true,
+    //     secure: true,
+    //   }
+    // }
   }
 })

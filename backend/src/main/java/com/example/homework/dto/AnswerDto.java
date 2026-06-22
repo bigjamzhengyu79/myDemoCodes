@@ -10,7 +10,7 @@ public class AnswerDto {
     public static class SubmitRequest {
         private Long questionId;
         private String answerContent;
-        private String imageUrl;
+        private String imageUrlsJson;
         private Boolean saveOnly = false;
     }
 
@@ -31,7 +31,7 @@ public class AnswerDto {
         private Long studentId;
         private String studentName;
         private String answerContent;
-        private String imageUrl;
+        private String imageUrlsJson;
         private Integer score;
         private Integer autoScore;
         private Integer totalScore;
@@ -49,7 +49,7 @@ public class AnswerDto {
             r.studentId = a.getStudent().getId();
             r.studentName = a.getStudent().getRealName();
             r.answerContent = a.getAnswerContent();
-            r.imageUrl = a.getImageUrl();
+            r.imageUrlsJson = a.getImageUrlsJson();
             r.score = a.getScore();
             r.autoScore = a.getAutoScore();
             r.totalScore = a.getQuestion().getTotalScore();

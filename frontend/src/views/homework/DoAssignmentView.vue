@@ -119,10 +119,11 @@
           <template v-else>
             <div v-if="!getAnswer(q.id) || getAnswer(q.id).status === 'DRAFT'">
               <LatexEditor v-model:content-latex="drafts[q.id]" 
+                           v-model:image-urls="imageDrafts[q.id]"
+                           inputLabel="解题过程"
                            class="form-control" 
-                           rows="5" 
+                           :rows=5
                            :placeholder="`在此输入解题过程（支持LaTeX，如：$f'(x) = ...$）`"
-                           :showImageUpload="false" 
               />
               <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
                 <button v-if="!getAnswer(q.id) || getAnswer(q.id).status === 'DRAFT'" class="btn btn-primary"
@@ -174,6 +175,7 @@ const assignmentId = Number(route.params.id)
 const assignment = ref(null)
 const answers = ref([])
 const drafts = ref({})
+const imageDrafts = ref({})
 const submitting = ref({})
 const loading = ref(true)
 const lightbox = ref(null)
@@ -200,12 +202,47 @@ function getAnswer(qid) {
 }
 
 function renderLatex(text) {
-  if (!text) return ''
-  return text.replace(/\$\$([^$]+)\$\$/g, (_, m) => {
-    try { return katex.renderToString(m, { displayMode: true }) } catch { return m }
-  }).replace(/\$([^$]+)\$/g, (_, m) => {
-    try { return katex.renderToString(m, { displayMode: false }) } catch { return m }
-  }).replace(/\n/g, '<br>')
+  if (!text) return '<span style="color:var(--c-text3)">预览...</span>'
+  
+  // 用占位符保护 KaTeX 输出，防止后续 replace 破坏 HTML 结构
+  const placeholders = []
+  let counter = 0
+  
+  // 替换块级公式并保存到占位符
+  text = text.replace(/\$\$([^$]+)\$\$/g, (match, m) => {
+    try {
+      const html = katex.renderToString(m, { displayMode: true })
+      const placeholder = `__KATEX_PLACEHOLDER_${counter}__`
+      placeholders.push(html)
+      counter++
+      return placeholder
+    } catch {
+      return match
+    }
+  })
+  
+  // 替换行内公式并保存到占位符
+  text = text.replace(/\$([^$]+)\$/g, (match, m) => {
+    try {
+      const html = katex.renderToString(m, { displayMode: false })
+      const placeholder = `__KATEX_PLACEHOLDER_${counter}__`
+      placeholders.push(html)
+      counter++
+      return placeholder
+    } catch {
+      return match
+    }
+  })
+  
+  // 现在安全地处理换行符（不会影响 KaTeX 占位符）
+  text = text.replace(/\n/g, '<br>')
+  
+  // 恢复所有 KaTeX 占位符
+  placeholders.forEach((html, i) => {
+    text = text.replace(`__KATEX_PLACEHOLDER_${i}__`, html)
+  })
+  
+  return text
 }
 
 async function selectChoice(qid, label) {
@@ -216,10 +253,17 @@ async function selectChoice(qid, label) {
 
 async function saveAnswer(qid) {
   const content = drafts.value[qid]
-  if (!content?.trim()) return
+  const images = imageDrafts.value[qid] || []
+  if (!content?.trim() && images.length === 0) return
   submitting.value[qid] = true
   try {
-    const res = await answerApi.submit(assignmentId, { questionId: qid, answerContent: content, saveOnly: true })
+    const imageUrlJson = images.length > 0 ? JSON.stringify(images.map(img => img.dataUrl)) : null
+    const res = await answerApi.submit(assignmentId, { 
+      questionId: qid, 
+      answerContent: content, 
+      imageUrlsJson: imageUrlJson,
+      saveOnly: true 
+    })
     if (res.success) {
       const idx = answers.value.findIndex(a => a.questionId === qid)
       if (idx >= 0) answers.value[idx] = res.data
@@ -232,10 +276,16 @@ async function saveAnswer(qid) {
 
 async function submitAnswer(qid) {
   const content = drafts.value[qid]
-  if (!content?.trim()) return
+  const images = imageDrafts.value[qid] || []
+  if (!content?.trim() && images.length === 0) return
   submitting.value[qid] = true
   try {
-    const res = await answerApi.submit(assignmentId, { questionId: qid, answerContent: content })
+    const imageUrlsJson = images.length > 0 ? JSON.stringify(images.map(img => img.dataUrl)) : null
+    const res = await answerApi.submit(assignmentId, { 
+      questionId: qid, 
+      answerContent: content,
+      imageUrlsJson: imageUrlsJson
+    })
     if (res.success) {
       const idx = answers.value.findIndex(a => a.questionId === qid)
       if (idx >= 0) answers.value[idx] = res.data
@@ -277,6 +327,14 @@ onMounted(async () => {
       answers.value = ansRes.data || []
       answers.value.forEach(a => {
         if (a.answerContent) drafts.value[a.questionId] = a.answerContent
+        if (a.imageUrlsJson) {
+          try {
+            const imageUrlsJson = JSON.parse(a.imageUrlsJson)
+            imageDrafts.value[a.questionId] = imageUrlsJson.map(url => ({ dataUrl: url }))
+          } catch (e) {
+            console.warn('Failed to parse image URLs for question', a.questionId, e)
+          }
+        }
       })
     }
   } finally {

@@ -5,7 +5,7 @@
       <div style="flex:1">
         <h1 style="font-size:18px;font-weight:600">{{ assignment?.title }}</h1>
         <div class="text-muted text-sm" style="margin-top:2px">
-          {{ assignment?.className }} · {{ assignment?.questionCount }} 题
+          {{ assignment?.classGroupName || '全部' }} · {{ assignment?.questionCount }} 题
           <span v-if="assignment?.dueTime"> · 截止 {{ fmtDate(assignment?.dueTime) }}</span>
         </div>
       </div>

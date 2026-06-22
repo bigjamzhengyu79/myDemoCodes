@@ -15,7 +15,7 @@
         <div>
           <div style="font-size:13px;font-weight:500">{{ auth.user?.realName }}</div>
           <div style="font-size:11px;color:var(--c-text3)">
-            {{ auth.isTeacher() ? '教师' : auth.user?.className }}
+            {{ auth.isTeacher() ? '教师' : '学生' }}
           </div>
         </div>
       </div>
@@ -39,6 +39,21 @@
               <path d="M13.5 2h-11C1.67 2 1 2.67 1 3.5v9c0 .83.67 1.5 1.5 1.5h11c.83 0 1.5-.67 1.5-1.5v-9c0-.83-.67-1.5-1.5-1.5zm-6 9l-3-3 1.06-1.06L7.5 8.88l3.94-3.94L12.5 6l-5 5z"/>
             </svg>
             批改作业
+          </router-link>
+        </template>
+        <template v-if="auth.isAdmin()">
+          <div class="nav-section-label">系统管理</div>
+          <router-link class="nav-item" to="/users" active-class="active">
+            <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 5a5 5 0 0110 0H3z"/>
+            </svg>
+            用户管理
+          </router-link>
+          <router-link class="nav-item" to="/class-groups" active-class="active">
+            <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/>
+            </svg>
+            班级管理
           </router-link>
         </template>
       </nav>
@@ -82,4 +97,5 @@ function handleLogout() {
 .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--c-border); }
 .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--c-primary-bg); color: var(--c-primary); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex-shrink: 0; }
 .sidebar-footer { border-top: 1px solid var(--c-border); padding: 8px 0; }
+.nav-section-label { font-size: 10px; font-weight: 600; color: var(--c-text3); text-transform: uppercase; letter-spacing: .08em; padding: 16px 16px 4px; }
 </style>

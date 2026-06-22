@@ -5,9 +5,8 @@
       <div>
         <FormulaInput
           v-model="localContentLatex"
-          id="stem-input"
           :multiline="multiline"
-          :rows="rows"
+          :rows=rows
           :label="inputLabel"
           :placeholder="placeholder"
           data-label="LaTeX 输入框"
@@ -25,7 +24,7 @@
     <!-- ── 贴图区域 ── -->
     <div v-if="showImageUpload">
       <div class="flex-between" style="margin-bottom:8px">
-        <label class="form-label" style="margin-bottom:0">题目配图</label>
+        <label class="form-label" style="margin-bottom:0">配图</label>
         <span class="text-sm text-muted">支持粘贴 (Ctrl+V)、拖拽、点击上传</span>
       </div>
 

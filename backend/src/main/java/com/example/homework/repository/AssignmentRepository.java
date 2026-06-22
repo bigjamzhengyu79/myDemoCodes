@@ -7,6 +7,6 @@ import java.util.List;
 
 public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
     List<Assignment> findByTeacher(User teacher);
-    List<Assignment> findByClassNameAndStatus(String className, Assignment.Status status);
-    List<Assignment> findByClassName(String className);
+    List<Assignment> findByClassGroupId(Long classGroupId);
+    List<Assignment> findByClassGroupIdIn(List<Long> classGroupIds);
 }

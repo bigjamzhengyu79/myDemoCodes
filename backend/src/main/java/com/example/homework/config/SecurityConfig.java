@@ -1,6 +1,5 @@
 package com.example.homework.config;
 
-import com.example.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,7 +30,6 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtUtil jwtUtil;
-    private final UserRepository userRepository;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -42,9 +40,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/users/**").permitAll()
-                .requestMatchers("/api/users/health").permitAll()
-                .requestMatchers("/api/math-goals/**").permitAll()
+                .requestMatchers("/api/goals/**").permitAll()
                 .requestMatchers("/api/assignments/**").permitAll()
+                .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers("/api/questions/**").permitAll()
                 .requestMatchers("/auth/**").permitAll() // ← 放行登录
                 .anyRequest().authenticated()
@@ -66,8 +64,9 @@ public class SecurityConfig {
                     if (jwtUtil.validateToken(token)) {
                         String username = jwtUtil.extractUsername(token);
                         String role = jwtUtil.extractRole(token);
+                        Long userId = jwtUtil.extractUserId(token);
                         var auth = new UsernamePasswordAuthenticationToken(
-                            username, null,
+                            username, userId,
                             List.of(new SimpleGrantedAuthority("ROLE_" + role))
                         );
                         SecurityContextHolder.getContext().setAuthentication(auth);

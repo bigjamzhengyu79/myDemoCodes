@@ -1,15 +1,20 @@
 package com.example.homework.service;
 
+import com.example.entity.ClassGroup;
 import com.example.entity.User;
 import com.example.homework.dto.AssignmentDto;
 import com.example.homework.entity.*;
 import com.example.homework.repository.*;
+import com.example.repository.ClassGroupRepository;
 import com.example.repository.UserRepository;
 
+import com.example.homework.dto.QuestionDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,6 +24,7 @@ public class AssignmentService {
     private final AssignmentRepository assignmentRepository;
     private final QuestionRepository questionRepository;
     private final UserRepository userRepository;
+    private final ClassGroupRepository classGroupRepository;
 
     public List<AssignmentDto.Response> listByTeacher(String username) {
         User teacher = userRepository.findByUsername(username).orElseThrow();
@@ -29,18 +35,27 @@ public class AssignmentService {
 
     public List<AssignmentDto.Response> listForStudent(String username) {
         User student = userRepository.findByUsername(username).orElseThrow();
-        String studentClassName = student.getClassName();
 
-        // 获取所有已发布的作业，再根据班级进行过滤
+        // 通过关联表查出学生所在的所有班级 ID
+        List<Long> classGroupIds = classGroupRepository.findClassGroupIdsByStudentId(student.getId());
+
+        if (classGroupIds.isEmpty()) {
+            // 学生未加入任何班级时，只显示未指定班级的作业
+            return assignmentRepository.findAll().stream()
+                    .filter(a -> a.getStatus() == Assignment.Status.PUBLISHED)
+                    .filter(a -> a.getClassGroup() == null)
+                    .map(AssignmentDto.Response::from)
+                    .collect(Collectors.toList());
+        }
+
+        // 获取学生所在班级的已发布作业
         return assignmentRepository.findAll().stream()
                 .filter(a -> a.getStatus() == Assignment.Status.PUBLISHED)
                 .filter(a -> {
-                    // 如果作业班级为空，则所有学生都能看到
-                    if (a.getClassName() == null || a.getClassName().isEmpty()) {
-                        return true;
-                    }
-                    // 如果作业班级不为空，只有班级匹配的学生能看到
-                    return a.getClassName().equals(studentClassName);
+                    // 未指定班级的作业对所有学生可见
+                    if (a.getClassGroup() == null) return true;
+                    // 指定了班级的作业只对该班学生可见
+                    return classGroupIds.contains(a.getClassGroup().getId());
                 })
                 .map(AssignmentDto.Response::from)
                 .collect(Collectors.toList());
@@ -57,7 +72,12 @@ public class AssignmentService {
         Assignment a = new Assignment();
         a.setTitle(req.getTitle());
         a.setDescription(req.getDescription());
-        a.setClassName(req.getClassName());
+        // 通过 classGroupId 关联班级（如果提供的话）
+        if (req.getClassGroupId() != null) {
+            ClassGroup cg = classGroupRepository.findById(req.getClassGroupId())
+                    .orElseThrow(() -> new RuntimeException("班级不存在: " + req.getClassGroupId()));
+            a.setClassGroup(cg);
+        }
         a.setDueTime(req.getDueTime());
         a.setTeacher(teacher);
         a.setStatus(Assignment.Status.DRAFT);
@@ -78,9 +98,31 @@ public class AssignmentService {
     }
 
     // 获取作业完整题目列表
+    @Transactional(readOnly = true)
     public Assignment getWithQuestions(Long id) {
         return assignmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("作业不存在"));
+    }
+
+    /**
+     * 获取作业详情（含完整的题目列表），在事务内完成所有懒加载访问。
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAssignmentDetail(Long id) {
+        Assignment a = getWithQuestions(id);
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("id", a.getId());
+        resp.put("title", a.getTitle());
+        resp.put("description", a.getDescription() != null ? a.getDescription() : "");
+        resp.put("classGroupId", a.getClassGroup() != null ? a.getClassGroup().getId() : null);
+        resp.put("classGroupName", a.getClassGroup() != null ? a.getClassGroup().getName() : "");
+        resp.put("dueTime", a.getDueTime() != null ? a.getDueTime().toString() : "");
+        resp.put("status", a.getStatus().name());
+        resp.put("questionCount", a.getQuestions().size());
+        resp.put("questions", a.getQuestions().stream()
+                .map(QuestionDto.Response::from)
+                .collect(Collectors.toList()));
+        return resp;
     }
 
 }

@@ -80,6 +80,7 @@ public class QuestionService {
                 step.setContentLatex(s.getContentLatex());
                 step.setStepScore(s.getStepScore() != null ? s.getStepScore() : 0);
                 step.setCommonErrors(s.getCommonErrors());
+                step.setImageUrlsJson(s.getImageUrlsJson());
                 return step;
             }).collect(Collectors.toList());
             saved.setSolutionSteps(steps);
@@ -124,6 +125,7 @@ public class QuestionService {
                 step.setContentLatex(s.getContentLatex());
                 step.setStepScore(s.getStepScore() != null ? s.getStepScore() : 0);
                 step.setCommonErrors(s.getCommonErrors());
+                step.setImageUrlsJson(s.getImageUrlsJson());
                 return step;
             }).collect(Collectors.toList());
             q.getSolutionSteps().addAll(steps);
