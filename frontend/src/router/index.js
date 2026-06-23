@@ -15,6 +15,8 @@ import QuestionEditView from '../views/homework/QuestionEditView.vue'
 import GradingView from '../views/homework/GradingView.vue'
 import { useAuthStore } from '../store/auth'
 
+const showUnitTest = import.meta.env.VITE_SHOW_UNIT_TEST !== 'false'
+
 const routes = [
   { path: '/', component: Home },
   { path: '/users', component: UserList },
@@ -22,7 +24,7 @@ const routes = [
   { path: '/math-goals', redirect: '/goals' },
   { path: '/goals', component: GoalView },
   { path: '/goals/student-progress', component: GoalStudentProgressView, meta: { requiresAuth: true } },
-  { path: '/unit-test', component: UnitTestView },
+  ...(showUnitTest ? [{ path: '/unit-test', component: UnitTestView }] : []),
   { path: '/login', component: LoginView },
   {
     path: '/',
