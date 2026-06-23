@@ -6,7 +6,7 @@
         <li><router-link to="/">首页</router-link></li>
         <li><router-link to="/users">用户管理</router-link></li>
         <li><router-link to="/goals">🎯 目标管理</router-link></li>
-        <li><router-link to="/unit-test">🧪 单元测试</router-link></li>
+        <li v-if="showUnitTest"><router-link to="/unit-test">🧪 单元测试</router-link></li>
         <li><router-link to="/assignments">✏️ 作业系统</router-link></li>
         <li><router-link to="/login">登录</router-link></li>
       </ul>
@@ -21,11 +21,14 @@
 import { provide } from 'vue'
 import { createFormulaContext, FORMULA_KEY } from '@/composables/useFormulaContext'
 
+const showUnitTest = import.meta.env.VITE_SHOW_UNIT_TEST !== 'false'
+
 export default {
   name: 'App',
   setup() {
     const formulaCtx = createFormulaContext()
     provide(FORMULA_KEY, formulaCtx)
+    return { showUnitTest }
   }
 }
 </script>

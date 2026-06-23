@@ -18,12 +18,5 @@ export default defineConfig({
         rewrite: (path) => path
       }
     }
-    // proxy: {
-    //   '/api': {
-    //     target: 'https://mydemocodes.onrender.com',  // ← 你的 Render 地址
-    //     changeOrigin: true,
-    //     secure: true,
-    //   }
-    // }
   }
 })
