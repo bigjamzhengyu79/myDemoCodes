@@ -178,6 +178,30 @@ export const useGoalStore = defineStore('goal', () => {
     await fetchComments(goalId)
   }
 
+  // ====== 私密评论 ======
+
+  async function fetchPrivateComments(goalId) {
+    try {
+      const data = await goalApi.getPrivateComments(goalId)
+      comments.value['private_' + goalId] = data
+      return data
+    } catch (err) {
+      console.error('获取私密评论失败:', err)
+      return []
+    }
+  }
+
+  async function addPrivateComment(goalId, data) {
+    const result = await goalApi.addPrivateComment(goalId, data)
+    await fetchPrivateComments(goalId)
+    return result
+  }
+
+  async function deletePrivateComment(goalId, commentId) {
+    await goalApi.deletePrivateComment(goalId, commentId)
+    await fetchPrivateComments(goalId)
+  }
+
   // ====== 学生概览（老师视角） ======
 
   async function fetchStudentOverview(goalId) {
@@ -223,6 +247,10 @@ export const useGoalStore = defineStore('goal', () => {
     addComment,
     updateComment,
     deleteComment,
+    // 私密评论
+    fetchPrivateComments,
+    addPrivateComment,
+    deletePrivateComment,
     // 学生概览
     fetchStudentOverview,
     // 关联作业
