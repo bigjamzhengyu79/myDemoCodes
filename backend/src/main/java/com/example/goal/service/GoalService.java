@@ -283,12 +283,16 @@ public class GoalService {
         comment.setImageUrls(encodeAttachments(req.getImageUrls(), req.getAttachmentNames()));
 
         if ("STUDENT".equals(role)) {
-            // 学生只能发 PUBLIC 评论，且必须是被分配的目标
-            if (!"PUBLIC".equals(visibility)) {
-                throw new RuntimeException("学生只能发表公开评论");
-            }
+            // 学生必须是被分配的目标才能评论
             if (!goalAssigneeRepository.existsByGoalAndStudent(goal, author)) {
                 throw new RuntimeException("您未被分配此目标，无法评论");
+            }
+            // 学生可发公开评论或回复私密评论
+            if ("PRIVATE_TO_STUDENT".equals(visibility)) {
+                // 学生回复私密评论时，目标学生设为老师（即目标创建者）
+                if (req.getTargetStudentId() == null && goal.getManager() != null) {
+                    comment.setTargetStudentId(goal.getManager().getId());
+                }
             }
             comment.setStudent(author);
         } else if ("TEACHER".equals(role) || "ADMIN".equals(role)) {

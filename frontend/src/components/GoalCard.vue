@@ -121,6 +121,84 @@
             </div>
           </Transition>
         </div>
+
+        <!-- 私密评论区（仅老师或相关学生可见） -->
+        <div class="private-comments-section" @click.stop>
+          <div class="comments-header" @click="togglePrivateComments">
+            <span>🔒 私密讨论（{{ localPrivateComments.length }}）</span>
+            <span class="toggle-icon">{{ privateCommentsExpanded ? '▾' : '▸' }}</span>
+          </div>
+          <Transition name="slide">
+            <div v-if="privateCommentsExpanded" class="comments-body">
+              <div v-if="localPrivateComments.length" class="comment-list">
+                <div v-for="c in localPrivateComments" :key="c.id" class="comment-item">
+                  <div class="comment-meta">
+                    <span class="comment-author">
+                      <span :class="['author-role', c.authorRole === 'TEACHER' ? 'teacher' : 'student']">
+                        {{ c.authorRole === 'TEACHER' ? '老师' : '学生' }}
+                      </span>
+                      {{ c.authorName || c.studentName }}
+                      <span v-if="c.targetStudentId && c.targetStudentName" class="target-student">
+                        → {{ c.targetStudentName }}
+                      </span>
+                    </span>
+                    <span>{{ fmtTime(c.createdAt) }}</span>
+                    <button v-if="c.own" class="comment-del" @click="deletePrivateComment(c.id)">删除</button>
+                  </div>
+                  <div class="comment-content" v-html="renderLatex(c.content)"></div>
+                  <div v-if="c.imageUrls?.length" class="comment-attachments">
+                    <a v-for="(file, j) in getAttachments(c.imageUrls)" :key="j"
+                       :href="file.url" class="attachment-link" download target="_blank">📎 {{ file.name }}</a>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="comment-empty">暂无私密讨论</div>
+              <!-- 老师：选择学生发送私密评论 -->
+              <div v-if="isTeacher && goal.canComment" class="comment-input-area">
+                <div class="private-target-select">
+                  <label>发送给：</label>
+                  <select v-model="privateTargetStudentId">
+                    <option :value="null" disabled>选择学生…</option>
+                    <option v-for="(sid, idx) in goal.assigneeIds || []" :key="sid" :value="sid">
+                      {{ goal.assigneeNames?.[idx] || '学生#' + sid }}
+                    </option>
+                  </select>
+                </div>
+                <textarea v-model="newPrivateComment" placeholder="输入私密评论（仅目标学生可见）…" rows="2"></textarea>
+                <div v-if="privateUploadedFiles.length" class="file-preview-list">
+                  <div v-for="(f, i) in privateUploadedFiles" :key="i" class="file-preview-item">
+                    <span class="file-preview-icon">📎</span>
+                    <span class="file-preview-name">{{ f.name }}</span>
+                    <span class="file-preview-size">{{ formatFileSize(f.size) }}</span>
+                    <button class="file-preview-remove" @click="removePrivateFile(i)">✕</button>
+                  </div>
+                </div>
+                <div class="comment-actions">
+                  <button class="btn-upload" @click="triggerPrivateUpload">📎 附件</button>
+                  <input ref="privateFileInput" type="file" multiple style="display:none" @change="onPrivateUploadFiles" />
+                  <button class="btn-send" :disabled="!newPrivateComment.trim() || !privateTargetStudentId" @click="submitPrivateComment">发送</button>
+                </div>
+              </div>
+              <!-- 学生：回复私密评论 -->
+              <div v-else-if="!isTeacher && goal.studentProgress !== undefined" class="comment-input-area">
+                <textarea v-model="newPrivateComment" placeholder="回复老师（私密）…" rows="2"></textarea>
+                <div v-if="privateUploadedFiles.length" class="file-preview-list">
+                  <div v-for="(f, i) in privateUploadedFiles" :key="i" class="file-preview-item">
+                    <span class="file-preview-icon">📎</span>
+                    <span class="file-preview-name">{{ f.name }}</span>
+                    <span class="file-preview-size">{{ formatFileSize(f.size) }}</span>
+                    <button class="file-preview-remove" @click="removePrivateFile(i)">✕</button>
+                  </div>
+                </div>
+                <div class="comment-actions">
+                  <button class="btn-upload" @click="triggerPrivateUpload">📎 附件</button>
+                  <input ref="privateFileInput" type="file" multiple style="display:none" @change="onPrivateUploadFiles" />
+                  <button class="btn-send" :disabled="!newPrivateComment.trim()" @click="submitPrivateComment">发送</button>
+                </div>
+              </div>
+            </div>
+          </Transition>
+        </div>
       </div>
 
       <div v-if="isTeacher" class="actions" @click.stop>
@@ -179,10 +257,16 @@ const emit = defineEmits(['edit', 'delete', 'addSub', 'editSub', 'deleteSub', 'u
 const goalStore = useGoalStore()
 const isExpanded = computed(() => goalStore.expandedGoals.has(props.goal.id))
 const commentsExpanded = ref(false)
+const privateCommentsExpanded = ref(false)
 const newComment = ref('')
+const newPrivateComment = ref('')
 const fileInput = ref(null)
+const privateFileInput = ref(null)
 const localComments = ref([])
+const localPrivateComments = ref([])
 const uploadedFiles = ref([])
+const privateUploadedFiles = ref([])
+const privateTargetStudentId = ref(null)
 
 // 判断当前用户是否有权评论
 const canWriteComment = computed(() => {
@@ -192,11 +276,20 @@ const canWriteComment = computed(() => {
   return props.goal.studentProgress !== undefined
 })
 
+// 私密评论：老师和相关学生都能看到
 watch(() => props.goal.id, async () => {
-  // 有条件加载评论：老师仅在有评论权限时（自己创建的目标），学生仅在被分配时
+  // 有条件加载公开评论
   if (props.isTeacher && !props.goal.canComment) return
   if (!props.isTeacher && props.goal.studentProgress === undefined) return
   await loadComments()
+
+  // 有条件加载私密评论
+  const canSeePrivate = props.isTeacher
+    ? props.goal.canComment
+    : props.goal.studentProgress !== undefined
+  if (canSeePrivate) {
+    await loadPrivateComments()
+  }
 }, { immediate: true })
 
 async function loadComments() {
@@ -207,12 +300,27 @@ async function loadComments() {
   }
 }
 
+async function loadPrivateComments() {
+  try {
+    localPrivateComments.value = await goalStore.fetchPrivateComments(props.goal.id)
+  } catch {
+    localPrivateComments.value = []
+  }
+}
+
 function toggleExpanded() {
   goalStore.toggleExpanded(props.goal.id)
 }
 
 function toggleComments() {
   commentsExpanded.value = !commentsExpanded.value
+}
+
+function togglePrivateComments() {
+  privateCommentsExpanded.value = !privateCommentsExpanded.value
+  if (privateCommentsExpanded.value && !localPrivateComments.value.length) {
+    loadPrivateComments()
+  }
 }
 
 const progressPercent = computed(() => {
@@ -269,6 +377,75 @@ async function deleteComment(commentId) {
   } catch (e) {
     alert('删除失败')
   }
+}
+
+async function submitPrivateComment() {
+  const content = newPrivateComment.value.trim()
+  if (!content && !privateUploadedFiles.value.length) return
+
+  if (props.isTeacher && !privateTargetStudentId.value) {
+    alert('请选择要发送的学生')
+    return
+  }
+
+  try {
+    const attachmentUrls = privateUploadedFiles.value.map(f => f.url)
+    const payload = {
+      content,
+      imageUrls: attachmentUrls,
+      attachmentNames: privateUploadedFiles.value.map(f => f.name),
+      visibility: 'PRIVATE_TO_STUDENT',
+    }
+    if (props.isTeacher && privateTargetStudentId.value) {
+      payload.targetStudentId = privateTargetStudentId.value
+    }
+    await goalStore.addPrivateComment(props.goal.id, payload)
+    newPrivateComment.value = ''
+    privateUploadedFiles.value = []
+    privateTargetStudentId.value = null
+    await loadPrivateComments()
+  } catch (e) {
+    alert('私密评论发送失败：' + (e.message || '未知错误'))
+  }
+}
+
+async function deletePrivateComment(commentId) {
+  if (!confirm('确认删除此私密评论？')) return
+  try {
+    await goalStore.deletePrivateComment(props.goal.id, commentId)
+    await loadPrivateComments()
+  } catch (e) {
+    alert('删除失败')
+  }
+}
+
+function triggerPrivateUpload() {
+  privateFileInput.value?.click()
+}
+
+async function onPrivateUploadFiles(e) {
+  const files = [...e.target.files]
+  if (!files.length) return
+  try {
+    const { goalApi } = await import('@/api/goalApi')
+    for (const file of files) {
+      const result = await goalApi.uploadFile(file)
+      if (result.url) {
+        privateUploadedFiles.value.push({
+          url: result.url,
+          name: result.originalName || file.name,
+          size: file.size,
+        })
+      }
+    }
+  } catch (err) {
+    alert('文件上传失败')
+  }
+  e.target.value = ''
+}
+
+function removePrivateFile(index) {
+  privateUploadedFiles.value.splice(index, 1)
 }
 
 function triggerUpload() {
@@ -470,6 +647,24 @@ function renderLatex(text) {
 .btn-send { background: #1D9E75; color: #fff; border-color: #1D9E75; }
 .btn-send:hover { background: #0F6E56; }
 .btn-send:disabled { opacity: .5; cursor: not-allowed; }
+
+/* 私密讨论区 */
+.private-comments-section {
+  margin-top: 6px;
+  border: 0.5px solid #f0d0d0; border-radius: 8px; overflow: hidden;
+}
+.private-target-select {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+}
+.private-target-select label { font-size: 11px; color: #A32D2D; font-weight: 500; white-space: nowrap; }
+.private-target-select select {
+  border: 0.5px solid #e0b0b0; border-radius: 4px; padding: 2px 6px;
+  font-size: 11px; flex: 1; background: #fffdf5; color: #333;
+}
+.target-student {
+  font-size: 10px; color: #A32D2D; background: #fff0f0;
+  border-radius: 4px; padding: 1px 5px; font-weight: 500;
+}
 
 .actions { display: flex; gap: 6px; flex-shrink: 0; margin-top: 2px; }
 .btn-sub {

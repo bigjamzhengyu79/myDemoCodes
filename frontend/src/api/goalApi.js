@@ -70,6 +70,15 @@ export const goalApi = {
   getPrivateComments(goalId) {
     return http.get(`/goals/${goalId}/private-comments`)
   },
+  addPrivateComment(goalId, data) {
+    return http.post(`/goals/${goalId}/comments`, { ...data, visibility: 'PRIVATE_TO_STUDENT' })
+  },
+  updatePrivateComment(goalId, commentId, data) {
+    return http.put(`/goals/${goalId}/comments/${commentId}`, { ...data, visibility: 'PRIVATE_TO_STUDENT' })
+  },
+  deletePrivateComment(goalId, commentId) {
+    return http.delete(`/goals/${goalId}/comments/${commentId}`)
+  },
 
   // 学生概览（老师）
   getStudentOverview(goalId) {
