@@ -35,7 +35,8 @@
       <div v-for="a in assignments" :key="a.id" class="assignment-card card"
            @click="$router.push(auth.isTeacher() ? `/assignments/${a.id}` : `/assignments/${a.id}/do`)">
         <div class="flex-between mb-1">
-          <span :class="['badge', statusBadge(a.status)]">{{ statusLabel(a.status) }}</span>
+          <span v-if="auth.isTeacher()" :class="['badge', statusBadge(a.status)]">{{ statusLabel(a.status) }}</span>
+          <span v-else :class="['badge', studentStatusBadge(a, a.questionCount)]">{{ studentStatusLabel(a, a.questionCount) }}</span>
           <span class="text-sm text-muted">{{ a.questionCount }} 题</span>
         </div>
         <div style="font-size:15px;font-weight:500;margin-bottom:4px">{{ a.title }}</div>
@@ -129,6 +130,18 @@ async function publishAssignment(id) {
 
 function statusLabel(s) { return { DRAFT: '草稿', PUBLISHED: '进行中', CLOSED: '已结束' }[s] || s }
 function statusBadge(s) { return { DRAFT: 'badge-gray', PUBLISHED: 'badge-green', CLOSED: 'badge-red' }[s] || 'badge-gray' }
+function studentStatusLabel(a, total) {
+  const answered = a.answeredCount || 0
+  if (answered === 0) return '未开始'
+  if (answered < total) return `进行中 (${answered}/${total})`
+  return '已完成'
+}
+function studentStatusBadge(a, total) {
+  const answered = a.answeredCount || 0
+  if (answered === 0) return 'badge-gray'
+  if (answered < total) return 'badge-green'
+  return 'badge-blue'
+}
 function fmtDate(d) { return new Date(d).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }
 
 onMounted(() => {

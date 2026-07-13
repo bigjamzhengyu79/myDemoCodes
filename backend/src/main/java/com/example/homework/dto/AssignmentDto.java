@@ -28,6 +28,10 @@ public class AssignmentDto {
         private String status;
         private int questionCount;
         private LocalDateTime createdAt;
+        /** 学生个人已答题数（仅学生视角返回） */
+        private int answeredCount;
+        /** 作业总题数（与学生视角的 answeredCount 对应） */
+        private int totalCount;
 
         public static Response from(Assignment a) {
             Response r = new Response();
@@ -42,6 +46,7 @@ public class AssignmentDto {
             r.dueTime = a.getDueTime();
             r.status = a.getStatus().name();
             r.questionCount = a.getQuestions().size();
+            r.totalCount = a.getQuestions().size();
             r.createdAt = a.getCreatedAt();
             return r;
         }

@@ -25,6 +25,7 @@ public class AssignmentService {
     private final QuestionRepository questionRepository;
     private final UserRepository userRepository;
     private final ClassGroupRepository classGroupRepository;
+    private final StudentAnswerRepository studentAnswerRepository;
 
     public List<AssignmentDto.Response> listByTeacher(String username) {
         User teacher = userRepository.findByUsername(username).orElseThrow();
@@ -44,7 +45,12 @@ public class AssignmentService {
             return assignmentRepository.findAll().stream()
                     .filter(a -> a.getStatus() == Assignment.Status.PUBLISHED)
                     .filter(a -> a.getClassGroup() == null)
-                    .map(AssignmentDto.Response::from)
+                    .map(a -> {
+                        AssignmentDto.Response r = AssignmentDto.Response.from(a);
+                        long count = studentAnswerRepository.countByAssignmentAndStudent(a.getId(), student.getId());
+                        r.setAnsweredCount((int) count);
+                        return r;
+                    })
                     .collect(Collectors.toList());
         }
 
@@ -57,7 +63,13 @@ public class AssignmentService {
                     // 指定了班级的作业只对该班学生可见
                     return classGroupIds.contains(a.getClassGroup().getId());
                 })
-                .map(AssignmentDto.Response::from)
+                .map(a -> {
+                    AssignmentDto.Response r = AssignmentDto.Response.from(a);
+                    // 查询该学生在此作业上的已答题数
+                    long count = studentAnswerRepository.countByAssignmentAndStudent(a.getId(), student.getId());
+                    r.setAnsweredCount((int) count);
+                    return r;
+                })
                 .collect(Collectors.toList());
     }
 
