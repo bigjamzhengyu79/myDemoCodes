@@ -28,6 +28,12 @@ export const goalApi = {
   list(params = {}) {
     return http.get('/goals', { params })
   },
+  listCopyable() {
+    return http.get('/goals/copyable')
+  },
+  toggleCopyable(id, copyable) {
+    return http.patch(`/goals/${id}/copyable`, { copyable })
+  },
   stats() {
     return http.get('/goals/stats')
   },

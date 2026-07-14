@@ -9,6 +9,22 @@
 
         <div v-if="parentTitle" class="parent-hint">父目标：{{ parentTitle }}</div>
 
+        <!-- 从已有目标复制（仅在新建父目标时显示） -->
+        <div v-if="!isEdit && !parentId" class="copy-section">
+          <div class="copy-header">📋 从已有目标复制</div>
+          <div class="copy-row">
+            <select v-model="selectedCopyGoalId" class="form-control" @change="onCopyGoalChange">
+              <option :value="null">— 不复制，手动输入 —</option>
+              <option v-for="g in copyableGoals" :key="g.id" :value="g.id">
+                {{ g.title }}（{{ g.assigneeIds?.length || 0 }} 个学生）
+              </option>
+            </select>
+            <div v-if="selectedCopyGoal" class="copy-info">
+              已复制：标题、描述、班级、{{ selectedCopyGoal.assigneeIds?.length || 0 }} 个学生、{{ selectedCopyGoal.assignmentIds?.length || 0 }} 个作业
+            </div>
+          </div>
+        </div>
+
         <div class="modal-body">
           <div class="field">
             <label>目标名称 <span class="required">*</span></label>
@@ -81,19 +97,18 @@
             </select>
           </div>
 
-          <!-- 分配学生(多对多) -->
-    <!-- 关联作业 -->
-    <div class="field-section">关联作业</div>
-    <div class="field">
-      <select v-model="form.assignmentIds" multiple class="form-control" style="height:auto;min-height:80px">
-        <option v-for="a in assignments" :key="a.id" :value="a.id">
-          {{ a.title }} ({{ a.classGroupName || '全部' }})
-        </option>
-      </select>
-      <div class="text-sm text-muted" style="margin-top:4px;font-size:11px;color:#888">Ctrl+点击可多选，仅显示已发布的作业</div>
-    </div>
+          <!-- 关联作业 -->
+          <div class="field-section">关联作业</div>
+          <div class="field">
+            <select v-model="form.assignmentIds" multiple class="form-control" style="height:auto;min-height:80px">
+              <option v-for="a in assignments" :key="a.id" :value="a.id">
+                {{ a.title }} ({{ a.classGroupName || '全部' }})
+              </option>
+            </select>
+            <div class="text-sm text-muted" style="margin-top:4px;font-size:11px;color:#888">Ctrl+点击可多选，仅显示已发布的作业</div>
+          </div>
 
-    <div class="field-section">分配学生</div>
+          <div class="field-section">分配学生</div>
           <div class="field">
             <div class="assign-students">
               <div class="selected-students" v-if="form.assigneeIds && form.assigneeIds.length">
@@ -146,6 +161,7 @@
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue'
 import axios from 'axios'
+import { goalApi } from '@/api/goalApi'
 
 const props = defineProps({
   visible: Boolean,
@@ -159,8 +175,10 @@ const emit = defineEmits(['close', 'saved'])
 const saving = ref(false)
 
 const classGroups = ref([])
-
 const assignments = ref([])
+const copyableGoals = ref([])
+const selectedCopyGoalId = ref(null)
+const selectedCopyGoal = ref(null)
 
 const defaultForm = () => ({
   title: '',
@@ -235,8 +253,6 @@ http.interceptors.response.use(res => res.data)
 async function fetchStudents() {
   try {
     const resp = await http.get('/users')
-    // resp 已是响应体数据（因拦截器 res => res.data）
-    // 只保留 STUDENT 角色的用户
     allStudents.value = (resp || [])
       .filter(u => u.role === 'STUDENT')
       .map(u => ({
@@ -249,9 +265,6 @@ async function fetchStudents() {
   }
 }
 
-/**
- * 根据班级 ID 加载该班学生
- */
 async function fetchStudentsByClass(classGroupId) {
   if (!classGroupId) {
     isFilteredByClass.value = false
@@ -259,7 +272,6 @@ async function fetchStudentsByClass(classGroupId) {
   }
   try {
     const resp = await http.get(`/class-groups/${classGroupId}/students`)
-    // resp 已是响应体数据
     const students = resp || []
     allStudents.value = students.map(u => ({
       id: u.id,
@@ -276,7 +288,6 @@ async function fetchStudentsByClass(classGroupId) {
 async function fetchClassGroups() {
   try {
     const resp = await http.get('/class-groups')
-    // resp 已是响应体数据（因拦截器 res => res.data）
     classGroups.value = resp || []
   } catch (e) {
     classGroups.value = []
@@ -286,12 +297,18 @@ async function fetchClassGroups() {
 async function fetchAssignments() {
   try {
     const resp = await http.get('/assignments')
-    // resp 可能是 {data: [...]} 或 [...] 格式
     const list = Array.isArray(resp) ? resp : (resp?.data || [])
-    // 只显示已发布的作业
     assignments.value = list.filter(a => a.status === 'PUBLISHED')
   } catch (e) {
     assignments.value = []
+  }
+}
+
+async function fetchCopyableGoals() {
+  try {
+    copyableGoals.value = await goalApi.listCopyable()
+  } catch (e) {
+    copyableGoals.value = []
   }
 }
 
@@ -299,6 +316,7 @@ onMounted(() => {
   fetchStudents()
   fetchClassGroups()
   fetchAssignments()
+  fetchCopyableGoals()
 })
 
 // 监听班级选择变化，自动同步学生列表
@@ -313,6 +331,8 @@ watch(() => form.value.classGroupId, async (newVal) => {
 
 watch(() => props.visible, (val) => {
   if (val) {
+    selectedCopyGoalId.value = null
+    selectedCopyGoal.value = null
     if (props.goalData) {
       form.value = {
         title: props.goalData.title || '',
@@ -328,12 +348,41 @@ watch(() => props.visible, (val) => {
           ? [...props.goalData.assigneeIds]
           : [],
         classGroupId: props.goalData.classGroupId || null,
+        assignmentIds: Array.isArray(props.goalData.assignmentIds)
+          ? [...props.goalData.assignmentIds]
+          : [],
       }
     } else {
       form.value = defaultForm()
+      fetchCopyableGoals()
     }
   }
 })
+
+function onCopyGoalChange() {
+  if (!selectedCopyGoalId.value) {
+    selectedCopyGoal.value = null
+    return
+  }
+  selectedCopyGoal.value = copyableGoals.value.find(g => g.id === selectedCopyGoalId.value)
+  if (selectedCopyGoal.value) {
+    const g = selectedCopyGoal.value
+    form.value = {
+      title: g.title || '',
+      description: g.description || '',
+      status: 'TODO',
+      plannedStart: '',
+      plannedEnd: '',
+      actualStart: '',
+      actualEnd: '',
+      progress: 0,
+      owners: g.owners || '',
+      assigneeIds: Array.isArray(g.assigneeIds) ? [...g.assigneeIds] : [],
+      classGroupId: g.classGroupId || null,
+      assignmentIds: Array.isArray(g.assignmentIds) ? [...g.assignmentIds] : [],
+    }
+  }
+}
 
 function close() {
   emit('close')
@@ -380,6 +429,13 @@ async function submit() {
   margin: 8px 22px 0; background: #f5f5f3; border-radius: 8px;
   padding: 6px 10px; font-size: 12px; color: #666;
 }
+.copy-section {
+  margin: 8px 22px 0; padding: 8px 10px;
+  background: #f0faf5; border: 0.5px solid #c8e6d9; border-radius: 8px;
+}
+.copy-header { font-size: 12px; font-weight: 500; color: #0F6E56; margin-bottom: 4px; }
+.copy-row { display: flex; flex-direction: column; gap: 4px; }
+.copy-info { font-size: 11px; color: #888; margin-top: 2px; }
 .modal-body { padding: 14px 22px; }
 .modal-footer {
   display: flex; gap: 8px; justify-content: flex-end;
