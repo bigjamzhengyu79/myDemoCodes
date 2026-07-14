@@ -94,6 +94,19 @@ export const useGoalStore = defineStore('goal', () => {
     return false
   }
 
+  function findGoalNode(goalsList, goalId) {
+    for (const g of goalsList) {
+      if (g.id === goalId) {
+        return g
+      }
+      if (g.subGoals && g.subGoals.length > 0) {
+        const found = findGoalNode(g.subGoals, goalId)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
   /**
    * 学生更新自己在某个目标上的个人进度（乐观更新，不刷新全量）
    */
@@ -117,6 +130,21 @@ export const useGoalStore = defineStore('goal', () => {
     } catch (e) {
       // API 失败时回滚：重新拉取全量数据
       await fetchGoals()
+      throw e
+    }
+  }
+
+  async function toggleCopyable(goalId, copyable) {
+    const currentGoal = findGoalNode(goals.value, goalId)
+    const previousCopyable = currentGoal?.copyable
+    updateGoalNodeLocally(goals.value, goalId, { copyable })
+
+    try {
+      await goalApi.toggleCopyable(goalId, copyable)
+    } catch (e) {
+      if (currentGoal) {
+        currentGoal.copyable = previousCopyable
+      }
       throw e
     }
   }
@@ -238,6 +266,7 @@ export const useGoalStore = defineStore('goal', () => {
     updateGoal,
     deleteGoal,
     updateMyProgress,
+    toggleCopyable,
     expandedGoals,
     loadedDepths,
     loadSubGoals,

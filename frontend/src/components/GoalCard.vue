@@ -204,6 +204,9 @@
       <div v-if="isTeacher" class="actions" @click.stop>
         <button class="btn-sub" @click="$emit('addSub', goal)">+ 子目标</button>
         <button class="btn-icon" @click="$emit('edit', goal)">编辑</button>
+        <button class="btn-icon" @click="toggleCopyable" :class="{ 'btn-copyable-on': goal.copyable }" :title="goal.copyable ? '取消可复制标记' : '标记为可复制'">
+          📋{{ goal.copyable ? ' ON' : ' OFF' }}
+        </button>
         <button class="btn-icon" @click="$emit('delete', goal.id)">删除</button>
       </div>
     </div>
@@ -513,6 +516,15 @@ function renderLatex(text) {
   if (!text) return ''
   return text.replace(/\n/g, '<br>')
 }
+
+async function toggleCopyable() {
+  const newVal = !props.goal.copyable
+  try {
+    await goalStore.toggleCopyable(props.goal.id, newVal)
+  } catch (e) {
+    alert('操作失败：' + (e.message || '未知错误'))
+  }
+}
 </script>
 
 <style scoped>
@@ -677,6 +689,7 @@ function renderLatex(text) {
   border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer; color: #888;
 }
 .btn-icon:hover { background: #f5f5f3; color: #333; }
+.btn-copyable-on { background: #E1F5EE; color: #0F6E56; border-color: #1D9E75; font-weight: 500; }
 .sub-list { border-top: 0.5px solid #eee; }
 .sub-empty { padding: 20px 16px; font-size: 12px; color: #aaa; text-align: center; }
 .empty-icon { font-size: 24px; margin-bottom: 8px; }

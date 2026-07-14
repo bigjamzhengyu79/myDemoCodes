@@ -477,6 +477,34 @@ public class GoalService {
         return overview;
     }
 
+    // ====== 可复制目标列表 ======
+
+    /**
+     * 获取当前老师创建的可复制目标列表（仅父目标）
+     */
+    public List<GoalResponse> listCopyableGoals(Long teacherId) {
+        List<Goal> goals = goalRepository.findByParentIsNullAndManagerIdOrderByCreatedAtDesc(teacherId);
+        return goals.stream()
+                .filter(g -> Boolean.TRUE.equals(g.getCopyable()))
+                .map(g -> toResponse(g, teacherId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 切换目标的可复制标记
+     */
+    @Transactional
+    public GoalResponse toggleCopyable(Long goalId, Long userId, String role, Boolean copyable) {
+        Goal goal = findOrThrow(goalId);
+        // 权限校验：管理员或目标创建者
+        if (!"ADMIN".equals(role) && (goal.getManager() == null || !goal.getManager().getId().equals(userId))) {
+            throw new RuntimeException("无权修改此目标");
+        }
+        goal.setCopyable(copyable);
+        Goal saved = goalRepository.save(goal);
+        return toResponse(saved, userId);
+    }
+
     // ====== 关联作业管理 ======
 
     /**
@@ -615,6 +643,9 @@ public class GoalService {
         goal.setActualEnd(req.getActualEnd());
         goal.setProgress(req.getProgress() != null ? req.getProgress() : 0);
         goal.setOwners(req.getOwners());
+        if (req.getCopyable() != null) {
+            goal.setCopyable(req.getCopyable());
+        }
         if (req.getParentId() != null) {
             goal.setParent(findOrThrow(req.getParentId()));
         } else {
@@ -708,6 +739,7 @@ public class GoalService {
         r.setProgress(calcProgress(g));
         r.setOwners(g.getOwners());
         r.setDepth(g.getDepth());
+        r.setCopyable(Boolean.TRUE.equals(g.getCopyable()));
         r.setParentId(g.getParent() != null ? g.getParent().getId() : null);
         r.setCreatedAt(g.getCreatedAt());
         r.setUpdatedAt(g.getUpdatedAt());

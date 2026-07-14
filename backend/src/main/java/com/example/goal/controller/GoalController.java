@@ -86,6 +86,38 @@ public class GoalController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 获取当前老师可复制目标列表
+     */
+    @GetMapping("/copyable")
+    public ResponseEntity<List<GoalResponse>> listCopyable(Authentication auth) {
+        Long userId = getCurrentUserId(auth);
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(goalService.listCopyableGoals(userId));
+    }
+
+    /**
+     * 切换目标的可复制标记（仅需 copyable 字段）
+     */
+    @PatchMapping("/{id}/copyable")
+    public ResponseEntity<GoalResponse> toggleCopyable(
+            @PathVariable Long id,
+            @RequestBody Map<String, Boolean> body,
+            Authentication auth) {
+        Long userId = getCurrentUserId(auth);
+        String role = getCurrentRole(auth);
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        Boolean copyable = body.get("copyable");
+        if (copyable == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.ok(goalService.toggleCopyable(id, userId, role, copyable));
+    }
+
     // ====== 多对多学生分配 ======
 
     @GetMapping("/{id}/assignees")

@@ -22,6 +22,8 @@ public class GoalDto {
         private String owners;
         private Long parentId;
         private Long assigneeId;
+        /** 是否可被复制为模板 */
+        private Boolean copyable;
         /**
          * 分配的学生 ID 列表(多对多)。
          * null 表示不修改现有分配;空集合表示清空;非空表示替换为该集合。
@@ -79,6 +81,8 @@ public class GoalDto {
         private boolean canComment;
         /** 层级深度，根目标为1，子目标依次+1 */
         private Integer depth;
+        /** 是否可被复制为模板 */
+        private boolean copyable;
     }
 
     @Data

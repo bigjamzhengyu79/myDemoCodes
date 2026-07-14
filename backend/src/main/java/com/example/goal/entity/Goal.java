@@ -66,6 +66,10 @@ public class Goal {
     @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<GoalComment> goalComments = new ArrayList<>();
 
+    /** 是否可被复制为模板（仅老师创建的目标可用） */
+    @Column(nullable = false)
+    private Boolean copyable = false;
+
     /**
      * 目标关联的班级。设置后若未指定具体学生，则默认分配给班内所有学生。
      */
