@@ -271,6 +271,18 @@ public class GoalController {
         return ResponseEntity.ok(goalService.getStudentOverview(id, userId));
     }
 
+    /**
+     * 复制目标树（递归包含所有子目标）
+     */
+    @PostMapping("/{id}/copy")
+    public ResponseEntity<GoalResponse> copyGoal(@PathVariable Long id, Authentication auth) {
+        Long userId = getCurrentUserId(auth);
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(goalService.copyGoalTree(id, userId));
+    }
+
     // ====== 关联作业管理 ======
 
     /**

@@ -34,6 +34,10 @@ export const goalApi = {
   toggleCopyable(id, copyable) {
     return http.patch(`/goals/${id}/copyable`, { copyable })
   },
+  /** 复制目标树（父目标 + 所有子目标递归） */
+  copyGoal(id) {
+    return http.post(`/goals/${id}/copy`)
+  },
   stats() {
     return http.get('/goals/stats')
   },
