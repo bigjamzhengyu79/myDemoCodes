@@ -3,10 +3,10 @@
     <div v-if="loading" style="text-align:center;padding:80px"><div class="spinner" style="margin:auto"></div></div>
     <template v-else-if="assignment">
       <!-- Header -->
-      <div class="flex-between mb-3">
+      <div class="flex-between mb-3" style="position:relative">
         <div>
-          <button class="btn btn-sm" style="margin-bottom:8px" @click="$router.back()">← 返回</button>
-          <h1 style="font-size:18px;font-weight:600">{{ assignment.title }}</h1>
+          <button v-if="canGoBack" class="btn btn-ghost btn-back" @click="goBack">← 返回</button>
+          <h1 style="font-size:18px;font-weight:600;display:inline-block;vertical-align:middle">{{ assignment.title }}</h1>
           <div class="text-muted text-sm" style="margin-top:2px">
             共 {{ assignment.questions.length }} 题 · 截止 {{ fmtDate(assignment.dueTime) }}
             <span class="status-badge">{{ assignmentStatusLabel }}</span>
@@ -164,13 +164,24 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { assignmentApi, answerApi } from '@/api'
 import katex from 'katex'
 import LatexEditor from '@/components/LatexEditor.vue'
 import FormulaWidget from '@/components/FormulaWidget.vue'
 
 const route = useRoute()
+const router = useRouter()
+
+const canGoBack = computed(() => {
+  // 当浏览器历史记录多于1条时显示返回按钮
+  // 或者有 referrer 来源时也显示
+  return window.history.length > 1
+})
+
+function goBack() {
+  router.back()
+}
 const assignmentId = Number(route.params.id)
 const assignment = ref(null)
 const answers = ref([])
@@ -365,6 +376,7 @@ onMounted(async () => {
 .pending-badge { margin-top: 8px; font-size: 12px; color: var(--c-warning); }
 .done-banner { background: var(--c-success-bg); border-color: var(--c-success); text-align: center; padding: 24px; margin-top: 8px; }
 .status-badge { display: inline-block; margin-left: 10px; padding: 2px 8px; border-radius: 999px; background: var(--c-primary-bg); color: var(--c-primary); font-size: 12px; }
+.btn-back { margin-right: 8px; vertical-align: middle; }
 .q-images { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .q-image { max-width: 240px; max-height: 180px; object-fit: contain; border: 1px solid var(--c-border); border-radius: var(--radius-sm); cursor: zoom-in; transition: opacity .12s; }
 .q-image:hover { opacity: .85; }

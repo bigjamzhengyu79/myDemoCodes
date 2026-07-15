@@ -33,6 +33,11 @@ public class GoalDto {
         private Long classGroupId;
         /** 关联的作业 ID 列表 */
         private List<Long> assignmentIds;
+        /**
+         * 从已有目标复制时，指定源目标 ID。
+         * 后端会递归复制源目标的子目标及其关联数据（学生分配、作业关联）。
+         */
+        private Long sourceGoalId;
     }
 
     @Data

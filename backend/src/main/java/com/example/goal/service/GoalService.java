@@ -134,6 +134,12 @@ public class GoalService {
         if (req.getAssignmentIds() != null) {
             replaceAssignments(saved, req.getAssignmentIds());
         }
+        // 如果指定了 sourceGoalId，递归复制源目标的子目标及其关联数据
+        if (req.getSourceGoalId() != null && teacherId != null) {
+            Goal source = findOrThrow(req.getSourceGoalId());
+            User manager = findUserOrThrow(teacherId);
+            copySubGoalsRecursive(source, saved, manager);
+        }
         return toResponse(saved, teacherId);
     }
 
@@ -177,7 +183,31 @@ public class GoalService {
                 throw new RuntimeException("无权删除此目标");
             }
         }
+        // 手动清理 StudentGoalProgress（Goal 实体没有 @OneToMany 映射此表，无法级联删除）
+        List<Goal> allGoalsInTree = new ArrayList<>();
+        collectGoalTree(goal, allGoalsInTree);
+        for (Goal g : allGoalsInTree) {
+            studentGoalProgressRepository.deleteAll(studentGoalProgressRepository.findByGoal(g));
+        }
+        // 手动清理 GoalComment（避免懒加载集合未初始化导致的问题）
+        List<GoalComment> comments = goalCommentRepository.findByGoalOrderByCreatedAtAsc(goal);
+        if (!comments.isEmpty()) {
+            goalCommentRepository.deleteAll(comments);
+        }
+        // 删除目标（级联删除 assignees、assignments 等子关联）
         goalRepository.delete(goal);
+    }
+
+    /**
+     * 递归收集目标树中所有目标节点
+     */
+    private void collectGoalTree(Goal parent, List<Goal> result) {
+        result.add(parent);
+        if (parent.getSubGoals() != null) {
+            for (Goal sub : parent.getSubGoals()) {
+                collectGoalTree(sub, result);
+            }
+        }
     }
 
     public GoalStatsResponse getStats(Long currentUserId, String currentRole) {
@@ -503,6 +533,135 @@ public class GoalService {
         goal.setCopyable(copyable);
         Goal saved = goalRepository.save(goal);
         return toResponse(saved, userId);
+    }
+
+    // ====== 目标复制（递归包含子目标） ======
+
+    /**
+     * 复制目标树（父目标 + 所有子目标递归）。
+     * 新目标将由当前用户管理，重置状态为 TODO、进度为 0，清空时间信息。
+     */
+    @Transactional
+    public GoalResponse copyGoalTree(Long sourceGoalId, Long userId) {
+        Goal source = findOrThrow(sourceGoalId);
+        User manager = findUserOrThrow(userId);
+
+        // 递归复制目标树，返回新创建的顶层目标
+        Goal newRoot = copyGoalRecursive(source, null, manager);
+        return toResponse(newRoot, userId);
+    }
+
+    /**
+     * 递归复制一个目标及其所有子目标
+     */
+    private Goal copyGoalRecursive(Goal source, Goal newParent, User manager) {
+        Goal target = new Goal();
+        target.setTitle(source.getTitle());
+        target.setDescription(source.getDescription());
+        target.setStatus(GoalStatus.TODO);
+        target.setProgress(0);
+        target.setOwners(source.getOwners());
+        target.setCopyable(false);           // 复制品默认不可再复制
+        target.setManager(manager);
+        target.setParent(newParent);
+        target.setDepth(newParent != null ? newParent.getDepth() + 1 : 1);
+        target.setClassGroup(source.getClassGroup());
+        target.setAssignee(source.getAssignee());
+        target.setPlannedStart(null);
+        target.setPlannedEnd(null);
+        target.setActualStart(null);
+        target.setActualEnd(null);
+        // 保存当前层目标
+        Goal saved = goalRepository.save(target);
+
+        // 复制多对多学生分配
+        List<GoalAssignee> sourceAssignees = goalAssigneeRepository.findByGoal(source);
+        if (sourceAssignees != null && !sourceAssignees.isEmpty()) {
+            for (GoalAssignee ga : sourceAssignees) {
+                GoalAssignee newGa = new GoalAssignee();
+                newGa.setGoal(saved);
+                newGa.setStudent(ga.getStudent());
+                goalAssigneeRepository.save(newGa);
+                // 自动创建学生个人进度记录
+                initStudentProgress(saved, ga.getStudent().getId());
+            }
+        }
+
+        // 复制关联作业
+        List<GoalAssignment> sourceAssignments = goalAssignmentRepository.findByGoal(source);
+        if (sourceAssignments != null && !sourceAssignments.isEmpty()) {
+            for (GoalAssignment ga : sourceAssignments) {
+                GoalAssignment newGa = new GoalAssignment();
+                newGa.setGoal(saved);
+                newGa.setAssignmentId(ga.getAssignmentId());
+                goalAssignmentRepository.save(newGa);
+            }
+        }
+
+        // 递归复制子目标
+        List<Goal> subGoals = source.getSubGoals();
+        if (subGoals != null && !subGoals.isEmpty()) {
+            for (Goal sub : subGoals) {
+                copyGoalRecursive(sub, saved, manager);
+            }
+        }
+
+        return saved;
+    }
+
+    /**
+     * 从源目标递归复制子目标及其关联数据到新创建的父目标下。
+     * 仅在「从已有目标复制」创建模式中调用，此时新父目标已通过用户提交的表单创建完毕。
+     */
+    private void copySubGoalsRecursive(Goal source, Goal newParent, User manager) {
+        List<Goal> subGoals = source.getSubGoals();
+        if (subGoals == null || subGoals.isEmpty()) return;
+
+        for (Goal sub : subGoals) {
+            Goal target = new Goal();
+            target.setTitle(sub.getTitle());
+            target.setDescription(sub.getDescription());
+            target.setStatus(GoalStatus.TODO);
+            target.setProgress(0);
+            target.setOwners(sub.getOwners());
+            target.setCopyable(false);
+            target.setManager(manager);
+            target.setParent(newParent);
+            target.setDepth(newParent.getDepth() + 1);
+            target.setClassGroup(sub.getClassGroup());
+            target.setAssignee(sub.getAssignee());
+            target.setPlannedStart(null);
+            target.setPlannedEnd(null);
+            target.setActualStart(null);
+            target.setActualEnd(null);
+            Goal saved = goalRepository.save(target);
+
+            // 复制多对多学生分配
+            List<GoalAssignee> sourceAssignees = goalAssigneeRepository.findByGoal(sub);
+            if (sourceAssignees != null && !sourceAssignees.isEmpty()) {
+                for (GoalAssignee ga : sourceAssignees) {
+                    GoalAssignee newGa = new GoalAssignee();
+                    newGa.setGoal(saved);
+                    newGa.setStudent(ga.getStudent());
+                    goalAssigneeRepository.save(newGa);
+                    initStudentProgress(saved, ga.getStudent().getId());
+                }
+            }
+
+            // 复制关联作业
+            List<GoalAssignment> sourceAssignments = goalAssignmentRepository.findByGoal(sub);
+            if (sourceAssignments != null && !sourceAssignments.isEmpty()) {
+                for (GoalAssignment ga : sourceAssignments) {
+                    GoalAssignment newGa = new GoalAssignment();
+                    newGa.setGoal(saved);
+                    newGa.setAssignmentId(ga.getAssignmentId());
+                    goalAssignmentRepository.save(newGa);
+                }
+            }
+
+            // 递归复制子目标的子目标
+            copySubGoalsRecursive(sub, saved, manager);
+        }
     }
 
     // ====== 关联作业管理 ======
