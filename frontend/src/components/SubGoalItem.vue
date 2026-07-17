@@ -25,6 +25,18 @@
             <span>实施者：{{ goal.owners || '—' }}</span>
             <span v-if="goal.classGroupName" class="class-badge">{{ goal.classGroupName }}</span>
           </div>
+
+          <!-- 关联作业（老师和学生都可见） -->
+          <div v-if="goal.assignmentIds?.length" class="sub-assignments-row" style="margin-top:6px">
+            <span class="sec-label">📝 关联作业：</span>
+            <span v-for="(aid, i) in goal.assignmentIds" :key="aid" class="assignment-link">
+              <a :href="isTeacher ? `/assignments/${aid}` : `/assignments/${aid}/do`" target="_blank" @click.stop>
+                {{ goal.assignmentTitles?.[i] || '作业#' + aid }}
+              </a>
+              <span v-if="i < goal.assignmentIds.length - 1">、</span>
+            </span>
+          </div>
+
           <div class="progress-row" style="margin-top:6px">
             <div class="bar-bg" style="height:3px">
               <div class="bar-fill" :class="`fill-${goal.status.toLowerCase()}`"
@@ -51,15 +63,6 @@
               </div>
             </div>
 
-            <div v-if="goal.assignmentIds?.length" class="sub-assignments-row">
-              <span class="sec-label">📝 作业：</span>
-              <span v-for="(aid, i) in goal.assignmentIds" :key="aid" class="assignment-link">
-                <a :href="`/assignments/${aid}/do`" target="_blank" @click.stop>
-                  {{ goal.assignmentTitles?.[i] || '#' + aid }}
-                </a>
-                <span v-if="i < goal.assignmentIds.length - 1">、</span>
-              </span>
-            </div>
           </div>
 
           <!-- 公开评论区（老师和学生共用） -->
