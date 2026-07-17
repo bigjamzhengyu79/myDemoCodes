@@ -21,6 +21,17 @@
           <span v-if="goal.classGroupName" class="class-badge">{{ goal.classGroupName }}</span>
         </div>
 
+        <!-- 关联作业（老师和学生都可见） -->
+        <div v-if="goal.assignmentIds?.length" class="my-assignments-row">
+          <span class="section-label">📝 关联作业：</span>
+          <span v-for="(aid, i) in goal.assignmentIds" :key="aid" class="assignment-link">
+            <a :href="isTeacher ? `/assignments/${aid}` : `/assignments/${aid}/do`" target="_blank" @click.stop>
+              {{ goal.assignmentTitles?.[i] || '作业#' + aid }}
+            </a>
+            <span v-if="i < goal.assignmentIds.length - 1">、</span>
+          </span>
+        </div>
+
         <div class="progress-row">
           <div class="bar-bg">
             <div class="bar-fill" :class="`fill-${goal.status.toLowerCase()}`"
@@ -51,16 +62,6 @@
               <label>实际完成</label>
               <input type="date" :value="goal.myActualEnd" @change="onActualEndChange" />
             </div>
-          </div>
-
-          <div v-if="goal.assignmentIds?.length" class="my-assignments-row">
-            <span class="section-label">📝 关联作业：</span>
-            <span v-for="(aid, i) in goal.assignmentIds" :key="aid" class="assignment-link">
-              <a :href="`/assignments/${aid}/do`" target="_blank" @click.stop>
-                {{ goal.assignmentTitles?.[i] || '作业#' + aid }}
-              </a>
-              <span v-if="i < goal.assignmentIds.length - 1">、</span>
-            </span>
           </div>
         </div>
 
@@ -589,7 +590,7 @@ async function toggleCopyable() {
 }
 .my-assignments-row {
   display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
-  background: #fafafa; border-radius: 6px; padding: 4px 8px;
+  background: #fafafa; border-radius: 6px; padding: 4px 8px; margin-bottom: 8px;
 }
 .section-label { font-size: 12px; color: #555; }
 .assignment-link a { color: #185FA5; font-size: 12px; text-decoration: none; }
