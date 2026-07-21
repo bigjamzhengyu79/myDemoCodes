@@ -9,6 +9,7 @@
           <span v-if="assignment?.dueTime"> · 截止 {{ fmtDate(assignment?.dueTime) }}</span>
         </div>
       </div>
+      <button class="btn btn-sm" style="margin-top:3px" @click="exportPdf">导出 PDF</button>
       <span v-if="assignment" :class="['badge', statusBadge(assignment.status)]" style="font-size:13px">
         {{ statusLabel(assignment.status) }}
       </span>
@@ -110,6 +111,9 @@ function statusAnswerLabel(s) { return { SUBMITTED: '待批改', AUTO_GRADED: '�
 function statusAnswerBadge(s) { return { SUBMITTED: 'badge-amber', AUTO_GRADED: 'badge-blue', REVIEWED: 'badge-green' }[s] || '' }
 function fmtDate(d) { return d ? new Date(d).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '' }
 function fmtTime(d) { return d ? new Date(d).toLocaleTimeString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '' }
+
+// 在新标签页打开打印/导出 PDF 页面（默认含抬头与留白，答案默认不含，可在打印页切换）
+function exportPdf() { window.open(`/assignments/${id}/print`, '_blank') }
 
 onMounted(async () => {
   try {

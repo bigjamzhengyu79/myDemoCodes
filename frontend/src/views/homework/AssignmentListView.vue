@@ -46,8 +46,10 @@
           <span>班级：{{ a.classGroupName || '全部' }}</span>
           <span v-if="a.dueTime">截止 {{ fmtDate(a.dueTime) }}</span>
         </div>
-        <div v-if="auth.isTeacher() && a.status === 'DRAFT'" style="margin-top:10px">
-          <button class="btn btn-sm btn-success" @click.stop="publishAssignment(a.id)">发布作业</button>
+        <div class="card-actions" style="margin-top:10px">
+          <button v-if="auth.isTeacher() && a.status === 'DRAFT'"
+                  class="btn btn-sm btn-success" @click.stop="publishAssignment(a.id)">发布作业</button>
+          <button v-if="a.questionCount > 0" class="btn btn-sm" @click.stop="exportPdf(a.id)">导出 PDF</button>
         </div>
       </div>
     </div>
@@ -128,6 +130,9 @@ async function publishAssignment(id) {
   await load()
 }
 
+// 在新标签页打开打印/导出 PDF 页面（打印页会用 id 重新拉取完整题目）
+function exportPdf(id) { window.open(`/assignments/${id}/print`, '_blank') }
+
 function statusLabel(s) { return { DRAFT: '草稿', PUBLISHED: '进行中', CLOSED: '已结束' }[s] || s }
 function statusBadge(s) { return { DRAFT: 'badge-gray', PUBLISHED: 'badge-green', CLOSED: 'badge-red' }[s] || 'badge-gray' }
 function studentStatusLabel(a, total) {
@@ -158,6 +163,7 @@ onMounted(() => {
 .assignment-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 .assignment-card { cursor: pointer; transition: box-shadow .15s, transform .15s; }
 .assignment-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .modal-box { width: 480px; max-height: 90vh; overflow-y: auto; }
 </style>
