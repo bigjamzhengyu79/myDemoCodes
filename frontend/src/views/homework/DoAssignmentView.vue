@@ -12,9 +12,12 @@
             <span class="status-badge">{{ assignmentStatusLabel }}</span>
           </div>
         </div>
-        <div class="progress-summary">
-          <div class="prog-num">{{ answeredCount }}/{{ assignment.questions.length }}</div>
-          <div class="text-sm text-muted">已作答</div>
+        <div class="header-right">
+          <button class="btn btn-sm" @click="exportPdf">导出 PDF</button>
+          <div class="progress-summary">
+            <div class="prog-num">{{ answeredCount }}/{{ assignment.questions.length }}</div>
+            <div class="text-sm text-muted">已作答</div>
+          </div>
         </div>
       </div>
 
@@ -183,6 +186,9 @@ function goBack() {
   router.back()
 }
 const assignmentId = Number(route.params.id)
+
+// 在新标签页打开打印/导出 PDF 页面（默认含抬头与留白、不含答案，可在打印页切换）
+function exportPdf() { window.open(`/assignments/${assignmentId}/print`, '_blank') }
 const assignment = ref(null)
 const answers = ref([])
 const drafts = ref({})
@@ -355,6 +361,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.header-right { display: flex; align-items: center; gap: 14px; }
 .progress-summary { text-align: center; }
 .prog-num { font-size: 24px; font-weight: 600; color: var(--c-primary); }
 .q-wrapper { overflow: hidden; }

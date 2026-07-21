@@ -110,3 +110,12 @@ select.form-control { cursor: pointer; }
 /* Fade transition */
 .fade-enter-active, .fade-leave-active { transition: opacity .2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 打印试卷页：隐藏全局导航/去除背景与内边距，让 A4 满幅输出。
+   仅在 PrintablePaper.vue 挂载时给 <body> 加 .printing-paper，
+   因此不会影响其他页面的 Ctrl+P。 */
+@media print {
+  body.printing-paper .navbar { display: none !important; }
+  body.printing-paper .app-container { background: #fff !important; }
+  body.printing-paper .main-content { padding: 0 !important; max-width: none !important; margin: 0 !important; }
+}

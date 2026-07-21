@@ -10,6 +10,7 @@ import LayoutView from '../views/homework/LayoutView.vue'
 import AssignmentListView from '../views/homework/AssignmentListView.vue'
 import AssignmentDetailView from '../views/homework/AssignmentDetailView.vue'
 import DoAssignmentView from '../views/homework/DoAssignmentView.vue'
+import PrintablePaper from '../views/homework/PrintablePaper.vue'
 import QuestionListView from '../views/homework/QuestionListView.vue'
 import QuestionEditView from '../views/homework/QuestionEditView.vue'
 import GradingView from '../views/homework/GradingView.vue'
@@ -26,6 +27,8 @@ const routes = [
   { path: '/goals/student-progress', component: GoalStudentProgressView, meta: { requiresAuth: true } },
   ...(showUnitTest ? [{ path: '/unit-test', component: UnitTestView }] : []),
   { path: '/login', component: LoginView },
+  // 打印/导出 PDF 专用页面：独立版式，不套 LayoutView 侧边栏
+  { path: '/assignments/:id/print', component: PrintablePaper, meta: { requiresAuth: true } },
   {
     path: '/',
     component: LayoutView,
