@@ -8,6 +8,13 @@
     <div style="display:grid;grid-template-columns:1fr 260px;gap:16px">
       <!-- Left: main editor -->
       <div>
+        <!-- Title -->
+        <div class="card mb-2">
+          <div class="editor-section-title">标题</div>
+          <input v-model="form.title" class="form-control" maxlength="255"
+                 placeholder="题目标题（可选，用于题库检索与列表展示，如：一元二次方程求根)" />
+        </div>
+
         <!-- Question stem -->
         <div class="card mb-2">
           <div class="editor-section-title">题干</div>
@@ -105,6 +112,40 @@
           </div>
         </div>
 
+        <!-- Sharing -->
+        <div class="card mb-2" v-if="canEditSharing">
+          <div class="editor-section-title">共享设置</div>
+          <div class="form-group">
+            <label class="form-label">可见范围</label>
+
+            <!-- 管理员指定共享的题目：作成者只读，可见性只能由管理员调整。
+                 这里必须隐藏整个下拉而不是只删掉 SHARED 选项 ——
+                 否则 select 找不到匹配值，第一次交互就会把 visibility 悄悄改成 PUBLIC。 -->
+            <div v-if="sharedLocked">
+              <div class="flex gap-2" style="align-items:center">
+                <span class="badge badge-blue">指定教师共享</span>
+                <span class="text-muted text-sm">由系统管理员管理</span>
+              </div>
+              <div class="text-muted text-sm" style="margin-top:4px">
+                这道题已由管理员共享给指定教师，可见范围只能由管理员调整。你仍可以编辑题目内容。
+              </div>
+            </div>
+
+            <template v-else>
+              <select v-model="form.visibility" class="form-control">
+                <option value="PUBLIC">公开（全体教师可用）</option>
+                <option value="PRIVATE">仅自己</option>
+                <option v-if="auth.isAdmin()" value="SHARED">指定教师</option>
+              </select>
+              <div class="text-muted text-sm" style="margin-top:4px">{{ visibilityHint }}</div>
+              <div v-if="auth.isAdmin() && form.visibility === 'SHARED'"
+                   class="text-muted text-sm" style="margin-top:4px">
+                共享教师请在题库列表页的「共享」按钮中指定。
+              </div>
+            </template>
+          </div>
+        </div>
+
         <!-- Preview total score -->
         <div class="card" style="background:var(--c-primary-bg);border-color:var(--c-primary)">
           <div class="text-sm" style="color:var(--c-primary);margin-bottom:2px">步骤分合计</div>
@@ -128,21 +169,26 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { questionApi } from '@/api'
+import { useAuthStore } from '@/store/auth'
 import LatexEditor from '@/components/LatexEditor.vue'
 import FormulaWidget from '@/components/FormulaWidget.vue'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const isEdit = computed(() => !!route.params.id)
 const saving = ref(false)
 const saveMsg = ref(null)
 const tags = ref([])
 const correctOption = ref('A')
+const createdById = ref(null)   // 编辑时从后端回填，用于判断是否为作成者
 
 const form = ref({
   title: '', contentLatex: '', questionType: 'OPEN_ENDED',
   difficulty: 3, totalScore: 5, answerKey: '', source: '',
   knowledgeTagIds: [],
+  visibility: 'PUBLIC',
+  sharedUserIds: [],
   imageUrls: [],   // [{ dataUrl, name, size }]
   imageUrls_steps: [],   // [{ dataUrl, name, size }] for solution steps
   options: [
@@ -155,6 +201,24 @@ const form = ref({
 })
 
 const stepTotal = computed(() => form.value.solutionSteps.reduce((s, st) => s + (st.stepScore || 0), 0))
+
+// ── Sharing ──────────────────────────────────────────────────
+// 新建时总能设置共享；编辑时只有作成者（或管理员）能改 —— 与后端的判定保持一致
+const canEditSharing = computed(() =>
+  !isEdit.value || auth.isAdmin() || (createdById.value != null && createdById.value === auth.user?.id)
+)
+
+// 管理员设定的「指定教师」共享：作成者可以继续编辑内容，但不能改可见性。
+// 后端 applyVisibility 也会强制这一点，此处只是不给出无效的操作入口。
+const sharedLocked = computed(() =>
+  isEdit.value && form.value.visibility === 'SHARED' && !auth.isAdmin()
+)
+
+const visibilityHint = computed(() => ({
+  PUBLIC: '所有教师都能在题库和选题器中看到并使用这道题。',
+  SHARED: '仅作成者和管理员指定的教师可见；他们可以使用，但不能修改。',
+  PRIVATE: '仅你自己可见。'
+}[form.value.visibility] || ''))
 
 // ── Save ─────────────────────────────────────────────────────
 function addStep() {
@@ -209,6 +273,7 @@ onMounted(async () => {
     const res = await questionApi.get(route.params.id)
     if (res.success) {
       const q = res.data
+      form.value.title = q.title || ''
       form.value.contentLatex = q.contentLatex
       form.value.questionType = q.questionType
       form.value.difficulty = q.difficulty
@@ -216,6 +281,9 @@ onMounted(async () => {
       form.value.answerKey = q.answerKey || ''
       form.value.source = q.source || ''
       form.value.knowledgeTagIds = q.knowledgeTags.map(t => t.id)
+      createdById.value = q.createdById ?? null
+      form.value.visibility = q.visibility || 'PUBLIC'
+      form.value.sharedUserIds = q.sharedUserIds || []
       if (q.options?.length) form.value.options = q.options.map(o => ({ ...o }))
       if (q.solutionSteps?.length) {
         form.value.solutionSteps = q.solutionSteps.map(s => {
@@ -256,6 +324,7 @@ onUnmounted(() => {
 .save-msg { margin-top: 8px; padding: 8px 12px; border-radius: var(--radius-sm); font-size: 13px; }
 .save-msg.ok { background: var(--c-success-bg); color: var(--c-success); }
 .save-msg.err { background: var(--c-danger-bg); color: var(--c-danger); }
+/* 教师选择器的样式已移至 QuestionListView（管理员共享弹窗） */
 /* ── 公式控件区 ── */
 .widget-area {
   position: sticky;
