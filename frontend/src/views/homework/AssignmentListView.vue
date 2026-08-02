@@ -55,11 +55,11 @@
     </div>
 
     <!-- Create modal -->
-    <div v-if="showCreate" class="modal-mask" @click.self="showCreate = false">
+    <div v-if="showCreate" class="modal-mask" @click.self="closeCreate">
       <div class="modal-box card">
         <h3 style="margin-bottom:16px;font-size:16px">新建作业</h3>
         <div class="form-group">
-          <label class="form-label">作业标题</label>
+          <label class="form-label">作业标题 <span style="color:var(--c-danger)">*</span></label>
           <input v-model="form.title" class="form-control" placeholder="如：导数专项练习 #2" />
         </div>
         <div class="form-group">
@@ -78,12 +78,15 @@
           <input v-model="form.dueTime" class="form-control" type="datetime-local" />
         </div>
         <div class="form-group">
-          <label class="form-label">选择题目（ID，逗号分隔）</label>
-          <input v-model="questionIds" class="form-control" placeholder="如：1,2,3" />
+          <label class="form-label">选择题目 <span style="color:var(--c-danger)">*</span></label>
+          <QuestionPicker v-model="selectedQuestions" />
         </div>
+        <div v-if="formError" class="form-error">{{ formError }}</div>
         <div class="flex gap-2" style="justify-content:flex-end;margin-top:8px">
-          <button class="btn" @click="showCreate = false">取消</button>
-          <button class="btn btn-primary" @click="createAssignment">创建</button>
+          <button class="btn" :disabled="creating" @click="closeCreate">取消</button>
+          <button class="btn btn-primary" :disabled="creating" @click="createAssignment">
+            {{ creating ? '创建中…' : '创建' }}
+          </button>
         </div>
       </div>
     </div>
@@ -94,6 +97,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/store/auth'
 import { assignmentApi, classGroupApi } from '@/api'
+import QuestionPicker from '@/components/QuestionPicker.vue'
 
 const auth = useAuthStore()
 const assignments = ref([])
@@ -101,7 +105,9 @@ const loading = ref(true)
 const showCreate = ref(false)
 const classGroups = ref([])
 const form = ref({ title: '', description: '', classGroupId: null, dueTime: '' })
-const questionIds = ref('1,2,3')
+const selectedQuestions = ref([])
+const creating = ref(false)
+const formError = ref('')
 
 const published = computed(() => assignments.value.filter(a => a.status === 'PUBLISHED').length)
 const draft = computed(() => assignments.value.filter(a => a.status === 'DRAFT').length)
@@ -111,12 +117,38 @@ async function load() {
   finally { loading.value = false }
 }
 
-async function createAssignment() {
-  const ids = questionIds.value.split(',').map(s => parseInt(s.trim())).filter(Boolean)
-  await assignmentApi.create({ ...form.value, questionIds: ids, dueTime: form.value.dueTime || null })
-  showCreate.value = false
+function resetCreateForm() {
   form.value = { title: '', description: '', classGroupId: null, dueTime: '' }
-  await load()
+  selectedQuestions.value = []
+  formError.value = ''
+}
+
+function closeCreate() {
+  showCreate.value = false
+  resetCreateForm()
+}
+
+async function createAssignment() {
+  formError.value = ''
+  if (!form.value.title.trim()) return (formError.value = '请填写作业标题')
+  if (selectedQuestions.value.length === 0) return (formError.value = '请至少选择 1 道题目')
+
+  creating.value = true
+  try {
+    await assignmentApi.create({
+      ...form.value,
+      title: form.value.title.trim(),
+      questionIds: selectedQuestions.value.map(q => q.id),
+      dueTime: form.value.dueTime || null
+    })
+    showCreate.value = false
+    resetCreateForm()
+    await load()
+  } catch (e) {
+    formError.value = e?.response?.data?.message || '创建失败，请重试'
+  } finally {
+    creating.value = false
+  }
 }
 
 async function loadClassGroups() {
@@ -164,6 +196,7 @@ onMounted(() => {
 .assignment-card { cursor: pointer; transition: box-shadow .15s, transform .15s; }
 .assignment-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal-box { width: 480px; max-height: 90vh; overflow-y: auto; }
+.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+.modal-box { width: 880px; max-width: 100%; max-height: 90vh; overflow-y: auto; }
+.form-error { color: var(--c-danger); background: var(--c-danger-bg); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 12px; margin-bottom: 8px; }
 </style>

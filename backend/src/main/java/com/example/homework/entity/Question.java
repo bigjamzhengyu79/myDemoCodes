@@ -50,6 +50,24 @@ public class Question {
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
+    /**
+     * 可见性：PUBLIC 全体教师可用 / SHARED 作成者 + sharedWith 列出的教师 / PRIVATE 仅作成者。
+     * 注意：只约束「题库列表、选择器发现、打开详情」这三处，
+     *      已写入 assignment_questions 的题目不受后续取消共享影响 —— 作业照常显示、打印、批改。
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 16)
+    private Visibility visibility = Visibility.PUBLIC;
+
+    /** visibility=SHARED 时被授权使用（只读，不可编辑删除）的教师集合 */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "question_shares",
+        joinColumns = @JoinColumn(name = "question_id"),
+        inverseJoinColumns = @JoinColumn(name = "user_id")
+    )
+    private Set<User> sharedWith = new HashSet<>();
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -73,4 +91,6 @@ public class Question {
     private Set<KnowledgeTag> knowledgeTags = new HashSet<>();
 
     public enum QuestionType { SINGLE_CHOICE, FILL_BLANK, OPEN_ENDED }
+
+    public enum Visibility { PUBLIC, SHARED, PRIVATE }
 }

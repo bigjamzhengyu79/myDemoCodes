@@ -88,8 +88,11 @@ CREATE TABLE IF NOT EXISTS questions (
     parent_id         BIGINT,
     image_urls_json   MEDIUMTEXT,
     created_by        BIGINT NOT NULL,
+    visibility        VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',   -- PUBLIC / SHARED / PRIVATE
     created_at        DATETIME,
     updated_at        DATETIME,
+    INDEX idx_q_visibility (visibility),
+    INDEX idx_q_created_by (created_by),
     CONSTRAINT fk_q_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -184,6 +187,19 @@ CREATE TABLE IF NOT EXISTS question_knowledge_tags (
     PRIMARY KEY (question_id, tag_id),
     CONSTRAINT fk_qkt_question FOREIGN KEY (question_id) REFERENCES questions(id)      ON DELETE CASCADE,
     CONSTRAINT fk_qkt_tag      FOREIGN KEY (tag_id)      REFERENCES knowledge_tags(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ============================================================
+-- 11b. question_shares — 题目共享给指定教师（questions.visibility='SHARED' 时生效）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS question_shares (
+    question_id BIGINT NOT NULL,
+    user_id     BIGINT NOT NULL,
+    PRIMARY KEY (question_id, user_id),
+    INDEX idx_qs_user (user_id),
+    CONSTRAINT fk_qs_question FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_qs_user     FOREIGN KEY (user_id)     REFERENCES users(id)     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 

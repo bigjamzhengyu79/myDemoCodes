@@ -15,7 +15,7 @@
         <div>
           <div style="font-size:13px;font-weight:500">{{ auth.user?.realName }}</div>
           <div style="font-size:11px;color:var(--c-text3)">
-            {{ auth.isTeacher() ? '教师' : '学生' }}
+            {{ roleLabel }}
           </div>
         </div>
       </div>
@@ -25,9 +25,9 @@
           <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
             <path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/>
           </svg>
-          {{ auth.isTeacher() ? '作业管理' : '我的作业' }}
+          {{ isStaff ? '作业管理' : '我的作业' }}
         </router-link>
-        <template v-if="auth.isTeacher()">
+        <template v-if="isStaff">
           <router-link class="nav-item" to="/questions" active-class="active">
             <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
               <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm.75 10.5h-1.5v-1.5h1.5v1.5zm1.27-5.13c-.2.38-.55.7-1.07.96L8.5 7.9V9h-1V7.3l.38-.18c.38-.18.65-.38.81-.6.16-.22.24-.46.24-.72a1 1 0 00-.3-.74 1.1 1.1 0 00-.79-.28 1.1 1.1 0 00-.82.32c-.2.22-.3.5-.3.86H5.75c0-.58.18-1.07.54-1.47.36-.4.87-.6 1.5-.6.6 0 1.08.17 1.45.5.37.33.56.77.56 1.3 0 .36-.1.69-.28 1.01z"/>
@@ -80,11 +80,18 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
 const router = useRouter()
+
+// auth.isTeacher() 是严格等于 'TEACHER'，管理员不在其中。
+// 题库/批改等教务功能管理员同样需要，故单列一个 isStaff。
+const isStaff = computed(() => auth.isTeacher() || auth.isAdmin())
+const roleLabel = computed(() =>
+  auth.isAdmin() ? '管理员' : auth.isTeacher() ? '教师' : '学生')
 
 function handleLogout() {
   auth.logout()
