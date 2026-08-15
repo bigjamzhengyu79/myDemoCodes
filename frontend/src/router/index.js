@@ -14,6 +14,8 @@ import PrintablePaper from '../views/homework/PrintablePaper.vue'
 import QuestionListView from '../views/homework/QuestionListView.vue'
 import QuestionEditView from '../views/homework/QuestionEditView.vue'
 import GradingView from '../views/homework/GradingView.vue'
+import MistakeBookView from '../views/homework/MistakeBookView.vue'
+import MistakeDetailView from '../views/homework/MistakeDetailView.vue'
 import { useAuthStore } from '../store/auth'
 
 const showUnitTest = import.meta.env.VITE_SHOW_UNIT_TEST !== 'false'
@@ -40,7 +42,13 @@ const routes = [
       { path: 'questions', component: QuestionListView },
       { path: 'questions/new', component: QuestionEditView },
       { path: 'questions/:id/edit', component: QuestionEditView },
-      { path: 'grading', component: GradingView }
+      { path: 'grading', component: GradingView },
+      // 错题本：学生视角。与其他作业页一样挂在 LayoutView 下共用侧边栏，
+      // requiresAuth 由父路由的 meta 提供。
+      // 刻意不加学生专用守卫：守卫只认 meta.requiresAuth + adminRoutes，
+      // 教师访问这里会看到自己的空收藏本，无害，不值得为此新增守卫机制。
+      { path: 'mistakes', component: MistakeBookView },
+      { path: 'mistakes/:id', component: MistakeDetailView }
     ]
   }
 ]

@@ -53,6 +53,29 @@ export const questionApi = {
   getTags: () => api.get('/questions/tags').then(wrapResponse)
 }
 
+// 错题本：学生手动收藏的题目。
+// 所有接口都不传 studentId —— 学生身份完全由 JWT 决定（后端从 credentials 取 userId）。
+//
+// 注意 /api/mistakes/** 不在后端 SecurityConfig 的 permitAll 列表里，
+// 未登录时返回 403（而不是 {success:false}），axios 会 reject 到调用方的 catch。
+export const mistakeApi = {
+  list: (params) => api.get('/mistakes', { params }).then(wrapResponse),
+  summary: () => api.get('/mistakes/summary').then(wrapResponse),
+  get: (id) => api.get(`/mistakes/${id}`).then(wrapResponse),
+  add: (payload) => api.post('/mistakes', payload).then(wrapResponse),
+  // 按 questionId 而非 note id：做题页只知道题目 ID
+  remove: (questionId) => api.delete(`/mistakes/questions/${questionId}`).then(wrapResponse),
+  saveNote: (questionId, payload) => api.put(`/mistakes/questions/${questionId}/note`, payload).then(wrapResponse),
+  // 做题页批量回填星标状态。
+  //
+  // 【注意】必须传逗号拼接的字符串，不能直接传数组：
+  // axios 默认把数组序列化成 questionIds[]=1&questionIds[]=2（带方括号），
+  // Spring 的 List<Long> 绑定不认这种 key，会静默地收到空列表 —— 请求返回 200，
+  // 但结果永远是 []，星标全部显示为未收藏。逗号形式 questionIds=1,2,3 才能正确绑定。
+  collected: (questionIds) =>
+    api.get('/mistakes/collected', { params: { questionIds: (questionIds || []).join(',') } }).then(wrapResponse)
+}
+
 export const gradingApi = {
   pending: () => api.get('/grading/pending').then(wrapResponse),
   grade: (payload) => api.post('/grading/grade', payload).then(wrapResponse)
