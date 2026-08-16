@@ -27,6 +27,12 @@
           </svg>
           {{ isStaff ? '作业管理' : '我的作业' }}
         </router-link>
+        <router-link v-if="isStudent" class="nav-item" to="/mistakes" active-class="active">
+          <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3 2h9a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zm2 3v1.5h6V5H5zm0 3.5V10h4V8.5H5z"/>
+          </svg>
+          错题本
+        </router-link>
         <template v-if="isStaff">
           <router-link class="nav-item" to="/questions" active-class="active">
             <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
@@ -90,6 +96,10 @@ const router = useRouter()
 // auth.isTeacher() 是严格等于 'TEACHER'，管理员不在其中。
 // 题库/批改等教务功能管理员同样需要，故单列一个 isStaff。
 const isStaff = computed(() => auth.isTeacher() || auth.isAdmin())
+// auth store 里没有 isStudent() —— 学生是"既非教师也非管理员"的隐含反面。
+// 与 isStaff 同源，此处就地取反，不去动全局 store：
+// store 的角色判断是函数不是 computed，为一个导航项新增第四个导出不划算。
+const isStudent = computed(() => !isStaff.value)
 const roleLabel = computed(() =>
   auth.isAdmin() ? '管理员' : auth.isTeacher() ? '教师' : '学生')
 

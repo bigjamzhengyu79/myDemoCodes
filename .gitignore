@@ -24,6 +24,9 @@ frontend/.env.development
 .vscode/
 *.iml
 
+# Claude Code（个人本地配置，含临时路径与会话 ID）
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db

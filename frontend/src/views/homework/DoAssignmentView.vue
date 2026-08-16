@@ -34,7 +34,16 @@
           <div class="q-num">{{ idx + 1 }}</div>
           <span :class="['badge', typeBadge(q.questionType)]">{{ typeLabel(q.questionType) }}</span>
           <span class="text-sm text-muted">{{ q.totalScore }} 分</span>
-          <div style="margin-left:auto;display:flex;gap:6px">
+          <!-- 收藏到错题本。刻意不看对错 —— 需求是"做过的题都能存"，做对的题同样可收藏。
+               单独占一格并紧跟分值，不放进右侧那组标签里：那里挤着知识点徽章和难度点，
+               纯图标按钮混在其中会被当成装饰，学生找不到（实测反馈）。 -->
+          <button class="btn-star" :class="{ on: collected.has(q.id) }"
+                  :disabled="starring[q.id]"
+                  :title="collected.has(q.id) ? '已在错题本，点击移出' : '加入错题本'"
+                  @click="toggleCollect(q.id)">
+            <span class="star-icon">{{ collected.has(q.id) ? '★' : '☆' }}</span>
+          </button>
+          <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
             <span v-for="tag in q.knowledgeTags" :key="tag.id" class="badge badge-gray">{{ tag.name }}</span>
             <span class="diff-dots">
               <span v-for="i in 5" :key="i" :class="['diff-dot', i <= q.difficulty ? 'on' : '']"></span>
@@ -168,7 +177,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { assignmentApi, answerApi } from '@/api'
+import { assignmentApi, answerApi, mistakeApi } from '@/api'
 import katex from 'katex'
 import LatexEditor from '@/components/LatexEditor.vue'
 import FormulaWidget from '@/components/FormulaWidget.vue'
@@ -196,6 +205,10 @@ const imageDrafts = ref({})
 const submitting = ref({})
 const loading = ref(true)
 const lightbox = ref(null)
+
+// 错题本收藏状态。Set 存的是已收藏的 questionId，页面加载后批量回填一次。
+const collected = ref(new Set())
+const starring = ref({})
 
 function parseImages(json) {
   if (!json) return []
@@ -313,6 +326,36 @@ async function submitAnswer(qid) {
   }
 }
 
+/**
+ * 加入 / 移出错题本。
+ * 乐观更新 + 失败回滚：星标要立刻响应点击，全应用没有 toast，
+ * 失败时唯一的反馈就是星标弹回原状。
+ *
+ * 注意这里不判断对错 —— 错题本是"做过习题的保存"，学生想收哪题就收哪题。
+ */
+async function toggleCollect(qid) {
+  if (starring.value[qid]) return
+  const wasCollected = collected.value.has(qid)
+  // Set 是引用类型，必须换新对象才能触发 Vue 的响应式更新
+  const next = new Set(collected.value)
+  wasCollected ? next.delete(qid) : next.add(qid)
+  collected.value = next
+  starring.value[qid] = true
+  try {
+    if (wasCollected) {
+      await mistakeApi.remove(qid)
+    } else {
+      await mistakeApi.add({ questionId: qid, sourceAssignmentId: assignmentId })
+    }
+  } catch (e) {
+    const rollback = new Set(collected.value)
+    wasCollected ? rollback.add(qid) : rollback.delete(qid)
+    collected.value = rollback
+  } finally {
+    starring.value[qid] = false
+  }
+}
+
 function choiceClass(qid, opt) {
   const ans = getAnswer(qid)
   if (!ans) return drafts.value[qid] === opt.optionLabel ? 'selected' : ''
@@ -354,6 +397,18 @@ onMounted(async () => {
         }
       })
     }
+
+    // 批量回填错题本星标。单独 try —— 收藏状态取不到不该影响整个做题页，
+    // 未登录时该接口返回 403（/api/mistakes/** 不在 permitAll 里）。
+    if (assignment.value?.questions?.length) {
+      try {
+        const ids = assignment.value.questions.map(q => q.id)
+        const cRes = await mistakeApi.collected(ids)
+        if (cRes.success) collected.value = new Set(cRes.data || [])
+      } catch (e) {
+        console.warn('错题本收藏状态加载失败', e)
+      }
+    }
   } finally {
     loading.value = false
   }
@@ -384,6 +439,34 @@ onMounted(async () => {
 .done-banner { background: var(--c-success-bg); border-color: var(--c-success); text-align: center; padding: 24px; margin-top: 8px; }
 .status-badge { display: inline-block; margin-left: 10px; padding: 2px 8px; border-radius: 999px; background: var(--c-primary-bg); color: var(--c-primary); font-size: 12px; }
 .btn-back { margin-right: 8px; vertical-align: middle; }
+/* 收藏按钮：做成有边框的胶囊，而不是一个裸图标。
+   最初是浅灰无边框的纯 ☆，和旁边的难度圆点一样是灰色小符号，学生反馈找不到。
+   现在【未收藏态也用琥珀色】—— 不用 --c-text3 那类中性灰：
+   灰色在这一行里与「5 分」「知识点标签」「难度点」完全同色，无论加不加边框都会被
+   当成静态信息读过去。用色彩把它从信息里区分出来，才是它显眼的真正原因。
+   两态的区别改由「描边 / 填充」承担，而不是「有色 / 无色」。 */
+.btn-star {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 27px; padding: 0; margin-left: 2px;
+  background: var(--c-warning-bg); border: 1.5px solid var(--c-warning);
+  border-radius: 999px; cursor: pointer; line-height: 1;
+  color: var(--c-warning);
+  transition: background .14s, border-color .14s, color .14s, transform .1s, box-shadow .14s;
+}
+.btn-star .star-icon { font-size: 16px; transform: translateY(-.5px); }
+.btn-star:hover:not(:disabled) {
+  background: var(--c-warning); color: #fff; transform: scale(1.1);
+  box-shadow: 0 2px 6px rgba(217, 119, 6, .4);
+}
+.btn-star:active:not(:disabled) { transform: scale(.94); }
+.btn-star:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+/* 已收藏：整块填充，与未收藏的描边态形成明确的开/关对比 */
+.btn-star.on {
+  background: var(--c-warning); border-color: var(--c-warning); color: #fff;
+  box-shadow: 0 1px 3px rgba(217, 119, 6, .35);
+}
+.btn-star.on:hover:not(:disabled) { background: var(--c-warning); border-color: var(--c-warning); color: #fff; }
+.btn-star:disabled { cursor: default; opacity: .55; }
 .q-images { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .q-image { max-width: 240px; max-height: 180px; object-fit: contain; border: 1px solid var(--c-border); border-radius: var(--radius-sm); cursor: zoom-in; transition: opacity .12s; }
 .q-image:hover { opacity: .85; }
