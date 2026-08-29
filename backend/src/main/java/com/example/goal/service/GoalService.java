@@ -511,12 +511,17 @@ public class GoalService {
     // ====== 可复制目标列表 ======
 
     /**
-     * 获取当前老师创建的可复制目标列表（仅父目标）
+     * 获取可复制目标列表（仅父目标）——【所有老师标记的都在内，不限创建者】。
+     *
+     * 「可复制」是跨老师共享的模板机制：老师 A 把目标标记为可复制后，
+     * 老师 B 新建目标时就能从中选取并复制一份（复制后 manager 归 B）。
+     * 自己创建的目标同样保留在列表里 —— 以自己的模板为基础再开一个是正常需求。
+     *
+     * 历史上这里错误地按 managerId 过滤，导致只能看到自己的目标，
+     * 详见 GoalRepository.findCopyableParents 的注释。
      */
     public List<GoalResponse> listCopyableGoals(Long teacherId) {
-        List<Goal> goals = goalRepository.findByParentIsNullAndManagerIdOrderByCreatedAtDesc(teacherId).stream()
-                .filter(g -> Boolean.TRUE.equals(g.getCopyable()))
-                .collect(Collectors.toList());
+        List<Goal> goals = goalRepository.findCopyableParents();
         ResponseContext ctx = buildContext(goals, teacherId);
         return goals.stream().map(g -> toResponse(g, ctx)).collect(Collectors.toList());
     }

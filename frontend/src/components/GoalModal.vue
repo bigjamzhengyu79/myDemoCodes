@@ -15,8 +15,10 @@
           <div class="copy-row">
             <select v-model="selectedCopyGoalId" class="form-control" @change="onCopyGoalChange">
               <option :value="null">— 不复制，手动输入 —</option>
+              <!-- 列表含其他老师共享的模板，必须显示作者名：
+                   不同老师很可能有同名目标（如都叫「期中复习」），只显示标题无法区分 -->
               <option v-for="g in copyableGoals" :key="g.id" :value="g.id">
-                {{ g.title }}（{{ g.assigneeIds?.length || 0 }} 个学生）
+                {{ g.title }}（{{ copyGoalAuthor(g) }} · {{ g.assigneeIds?.length || 0 }} 个学生）
               </option>
             </select>
             <div v-if="selectedCopyGoal" class="copy-info">
@@ -183,6 +185,7 @@ import { goalApi } from '@/api/goalApi'
 
 // 用于复制操作的 store（仅调用 copy API）
 import { useGoalStore } from '@/stores/goalStore'
+import { useAuthStore } from '@/store/auth'
 
 const props = defineProps({
   visible: Boolean,
@@ -192,6 +195,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'saved'])
+
+// 用于在可复制列表里把自己创建的模板标成「我」
+const authStore = useAuthStore()
 
 const saving = ref(false)
 
@@ -350,6 +356,16 @@ async function fetchCopyableGoals() {
   } catch (e) {
     copyableGoals.value = []
   }
+}
+
+/**
+ * 下拉项里显示的作者名。
+ * 列表包含其他老师共享的模板，自己的标成「我」更容易一眼分辨。
+ * managerName 可能为空（历史数据里 manager 允许为 null），兜底显示「未知」。
+ */
+function copyGoalAuthor(g) {
+  if (g.managerId && g.managerId === authStore.user?.id) return '我'
+  return g.managerName || '未知'
 }
 
 onMounted(() => {
