@@ -18,7 +18,7 @@
               <!-- 列表含其他老师共享的模板，必须显示作者名：
                    不同老师很可能有同名目标（如都叫「期中复习」），只显示标题无法区分 -->
               <option v-for="g in copyableGoals" :key="g.id" :value="g.id">
-                {{ g.title }}（{{ copyGoalAuthor(g) }} · {{ g.assigneeIds?.length || 0 }} 个学生）
+                {{ g.title }}（{{ copyGoalAuthor(g) }}）
               </option>
             </select>
             <div v-if="selectedCopyGoal" class="copy-info">
