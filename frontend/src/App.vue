@@ -11,6 +11,10 @@
         <li><router-link to="/login">登录</router-link></li>
       </ul>
     </nav>
+    <div v-if="isColdStarting" class="cold-start-banner">
+      <span class="cold-start-spinner"></span>
+      服务正在启动中，首次访问约需 1 分钟，请稍候…
+    </div>
     <main class="main-content">
       <router-view></router-view>
     </main>
@@ -20,6 +24,7 @@
 <script>
 import { provide } from 'vue'
 import { createFormulaContext, FORMULA_KEY } from '@/composables/useFormulaContext'
+import { isColdStarting } from '@/api/coldStart'
 
 const showUnitTest = import.meta.env.VITE_SHOW_UNIT_TEST !== 'false'
 
@@ -28,7 +33,7 @@ export default {
   setup() {
     const formulaCtx = createFormulaContext()
     provide(FORMULA_KEY, formulaCtx)
-    return { showUnitTest }
+    return { showUnitTest, isColdStarting }
   }
 }
 </script>
@@ -75,5 +80,30 @@ export default {
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.cold-start-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  background-color: #FEF3C7;
+  color: #92400E;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #FCD34D;
+}
+
+.cold-start-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(146, 64, 14, 0.25);
+  border-top-color: #92400E;
+  border-radius: 50%;
+  animation: cold-start-spin 0.8s linear infinite;
+}
+
+@keyframes cold-start-spin {
+  to { transform: rotate(360deg); }
 }
 </style>

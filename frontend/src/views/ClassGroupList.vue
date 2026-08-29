@@ -131,7 +131,7 @@ import axios from 'axios'
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL + '/api' : '/api',
-  timeout: 10000,
+  timeout: 90000, // Render 冷启动需 90 秒以上，说明见 api/goalApi.js
 })
 http.interceptors.request.use(config => {
   const token = localStorage.getItem('token')

@@ -523,7 +523,8 @@ async function toggleCopyable() {
   try {
     await goalStore.toggleCopyable(props.goal.id, newVal)
   } catch (e) {
-    alert('操作失败：' + (e.message || '未知错误'))
+    // 超时的状态是未知的（可能已生效），不能说成「操作失败」
+    alert(e.isTimeout ? e.message : '操作失败：' + (e.message || '未知错误'))
   }
 }
 </script>

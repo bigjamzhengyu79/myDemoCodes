@@ -70,7 +70,9 @@ public class GoalService {
                     .filter(g -> calcStatus(g) == st)
                     .collect(Collectors.toList());
         }
-        return goals.stream().map(g -> toResponse(g, currentUserId)).collect(Collectors.toList());
+        // 整个列表共用一个预取上下文：查询条数与目标数量无关
+        ResponseContext ctx = buildContext(goals, currentUserId);
+        return goals.stream().map(g -> toResponse(g, ctx)).collect(Collectors.toList());
     }
 
     /**
@@ -90,13 +92,11 @@ public class GoalService {
      * 按需加载子目标，支持指定深度
      */
     public List<GoalResponse> loadSubGoals(Long parentId, Integer depth, Long currentUserId) {
-        if (depth == null || depth <= 1) {
-            List<Goal> subs = goalRepository.findByParentIdOrderByPlannedStartAsc(parentId);
-            return subs.stream().map(g -> toResponse(g, currentUserId)).collect(Collectors.toList());
-        } else {
-            List<Goal> descendants = goalRepository.findDescendantsWithinDepth(parentId, depth);
-            return descendants.stream().map(g -> toResponse(g, currentUserId)).collect(Collectors.toList());
-        }
+        List<Goal> result = (depth == null || depth <= 1)
+                ? goalRepository.findByParentIdOrderByPlannedStartAsc(parentId)
+                : goalRepository.findDescendantsWithinDepth(parentId, depth);
+        ResponseContext ctx = buildContext(result, currentUserId);
+        return result.stream().map(g -> toResponse(g, ctx)).collect(Collectors.toList());
     }
 
     public GoalResponse getGoal(Long id, Long currentUserId) {
@@ -286,7 +286,8 @@ public class GoalService {
         List<Goal> parents = goalRepository.findByParentIsNullOrderByCreatedAtDesc().stream()
                 .filter(g -> goalIds.contains(g.getId()) || hasAssignedDescendant(g, goalIds))
                 .collect(Collectors.toList());
-        return parents.stream().map(g -> toResponse(g, studentId)).collect(Collectors.toList());
+        ResponseContext ctx = buildContext(parents, studentId);
+        return parents.stream().map(g -> toResponse(g, ctx)).collect(Collectors.toList());
     }
 
     // ====== 评论 ======
@@ -513,11 +514,11 @@ public class GoalService {
      * 获取当前老师创建的可复制目标列表（仅父目标）
      */
     public List<GoalResponse> listCopyableGoals(Long teacherId) {
-        List<Goal> goals = goalRepository.findByParentIsNullAndManagerIdOrderByCreatedAtDesc(teacherId);
-        return goals.stream()
+        List<Goal> goals = goalRepository.findByParentIsNullAndManagerIdOrderByCreatedAtDesc(teacherId).stream()
                 .filter(g -> Boolean.TRUE.equals(g.getCopyable()))
-                .map(g -> toResponse(g, teacherId))
                 .collect(Collectors.toList());
+        ResponseContext ctx = buildContext(goals, teacherId);
+        return goals.stream().map(g -> toResponse(g, ctx)).collect(Collectors.toList());
     }
 
     /**
@@ -883,9 +884,105 @@ public class GoalService {
     }
 
     /**
-     * 转为响应 DTO，如果 currentUserId 是学生则注入其个人进度
+     * toResponse 的批量预取上下文。
+     *
+     * 【为什么需要它】
+     * toResponse 会递归整棵目标树，原先每个节点都单独查一次 assignee / assignment /
+     * comment / studentProgress，并且每个节点都重新 findById 同一个 currentUser ——
+     * 节点数 N 就是 4N+ 条 SQL。目标树稍大就会让列表接口耗时 10～80 秒（实测），
+     * 超过前端超时时间后表现为「按钮点了报错」。
+     *
+     * 现在改为：进入递归前按整棵树的 id 集合一次性捞齐，递归中只查 Map。
+     * 查询条数从 O(N) 降为常数条，与树的大小无关。
+     */
+    private static final class ResponseContext {
+        final Long currentUserId;
+        final User currentUser;                                  // 只查一次，不再逐节点 findById
+        final Map<Long, List<GoalAssignee>> assigneesByGoalId;
+        final Map<Long, List<GoalAssignment>> assignmentsByGoalId;
+        final Map<Long, List<GoalComment>> publicCommentsByGoalId;
+        final Map<Long, StudentGoalProgress> progressByGoalId;
+
+        ResponseContext(Long currentUserId, User currentUser,
+                        Map<Long, List<GoalAssignee>> assigneesByGoalId,
+                        Map<Long, List<GoalAssignment>> assignmentsByGoalId,
+                        Map<Long, List<GoalComment>> publicCommentsByGoalId,
+                        Map<Long, StudentGoalProgress> progressByGoalId) {
+            this.currentUserId = currentUserId;
+            this.currentUser = currentUser;
+            this.assigneesByGoalId = assigneesByGoalId;
+            this.assignmentsByGoalId = assignmentsByGoalId;
+            this.publicCommentsByGoalId = publicCommentsByGoalId;
+            this.progressByGoalId = progressByGoalId;
+        }
+    }
+
+    /** 收集以 roots 为根的整棵树上的所有目标 id（含各级子目标） */
+    private void collectGoalIds(Collection<Goal> goals, Set<Long> out) {
+        if (goals == null) return;
+        for (Goal g : goals) {
+            if (g == null || g.getId() == null) continue;
+            // 防御环形引用：id 已存在就不再往下递归
+            if (!out.add(g.getId())) continue;
+            collectGoalIds(g.getSubGoals(), out);
+        }
+    }
+
+    /**
+     * 为一批根目标构建预取上下文。
+     * 空集合时直接返回空上下文，避免发出 IN () 这种无意义查询。
+     */
+    private ResponseContext buildContext(Collection<Goal> roots, Long currentUserId) {
+        Set<Long> goalIds = new HashSet<>();
+        collectGoalIds(roots, goalIds);
+
+        User currentUser = currentUserId == null
+                ? null
+                : userRepository.findById(currentUserId).orElse(null);
+
+        if (goalIds.isEmpty()) {
+            return new ResponseContext(currentUserId, currentUser,
+                    Collections.emptyMap(), Collections.emptyMap(),
+                    Collections.emptyMap(), Collections.emptyMap());
+        }
+
+        Map<Long, List<GoalAssignee>> assignees = goalAssigneeRepository.findByGoalIdIn(goalIds)
+                .stream().collect(Collectors.groupingBy(ga -> ga.getGoal().getId()));
+
+        Map<Long, List<GoalAssignment>> assignments = goalAssignmentRepository.findByGoalIdIn(goalIds)
+                .stream().collect(Collectors.groupingBy(ga -> ga.getGoal().getId()));
+
+        // 评论只有登录用户才会用到，未登录时省掉这次查询
+        Map<Long, List<GoalComment>> publicComments = currentUser == null
+                ? Collections.emptyMap()
+                : goalCommentRepository.findByGoalIdInAndVisibility(goalIds, "PUBLIC")
+                        .stream().collect(Collectors.groupingBy(c -> c.getGoal().getId()));
+
+        // 学生个人进度：复用已有的 findByStudent，一次取回该生全部进度再按目标 id 索引
+        Map<Long, StudentGoalProgress> progress = Collections.emptyMap();
+        if (currentUser != null && currentUser.getRole() == User.Role.STUDENT) {
+            progress = studentGoalProgressRepository.findByStudent(currentUser).stream()
+                    .filter(sp -> sp.getGoal() != null && goalIds.contains(sp.getGoal().getId()))
+                    .collect(Collectors.toMap(sp -> sp.getGoal().getId(), sp -> sp, (a, b) -> a));
+        }
+
+        return new ResponseContext(currentUserId, currentUser,
+                assignees, assignments, publicComments, progress);
+    }
+
+    /**
+     * 单个目标的转换入口：自建上下文。
+     * 保留这个重载是为了不改动散落各处的单目标调用点（创建/更新/详情等）。
      */
     private GoalResponse toResponse(Goal g, Long currentUserId) {
+        return toResponse(g, buildContext(Collections.singletonList(g), currentUserId));
+    }
+
+    /**
+     * 转为响应 DTO，如果 currentUserId 是学生则注入其个人进度
+     */
+    private GoalResponse toResponse(Goal g, ResponseContext ctx) {
+        Long currentUserId = ctx.currentUserId;
         GoalResponse r = new GoalResponse();
         r.setId(g.getId());
         r.setTitle(g.getTitle());
@@ -906,7 +1003,7 @@ public class GoalService {
         if (subGoals == null || subGoals.isEmpty()) {
             r.setSubGoals(Collections.emptyList());
         } else {
-            r.setSubGoals(subGoals.stream().map(s -> toResponse(s, currentUserId)).collect(Collectors.toList()));
+            r.setSubGoals(subGoals.stream().map(s -> toResponse(s, ctx)).collect(Collectors.toList()));
         }
         if (g.getManager() != null) {
             r.setManagerId(g.getManager().getId());
@@ -920,8 +1017,8 @@ public class GoalService {
             r.setClassGroupId(g.getClassGroup().getId());
             r.setClassGroupName(g.getClassGroup().getName());
         }
-        // 多对多学生分配
-        List<GoalAssignee> assignees = goalAssigneeRepository.findByGoal(g);
+        // 多对多学生分配（来自预取 Map，不再逐节点查库）
+        List<GoalAssignee> assignees = ctx.assigneesByGoalId.get(g.getId());
         if (assignees != null && !assignees.isEmpty()) {
             r.setAssigneeIds(new ArrayList<>());
             r.setAssigneeNames(new ArrayList<>());
@@ -935,8 +1032,8 @@ public class GoalService {
             r.setAssigneeIds(Collections.emptyList());
             r.setAssigneeNames(Collections.emptyList());
         }
-        // 关联作业
-        List<GoalAssignment> goalAssignments = goalAssignmentRepository.findByGoal(g);
+        // 关联作业（来自预取 Map）
+        List<GoalAssignment> goalAssignments = ctx.assignmentsByGoalId.get(g.getId());
         if (goalAssignments != null && !goalAssignments.isEmpty()) {
             r.setAssignmentIds(goalAssignments.stream()
                     .map(GoalAssignment::getAssignmentId)
@@ -952,11 +1049,10 @@ public class GoalService {
         // 注入当前用户的评论（仅公开评论）
         r.setCanComment(false);
         if (currentUserId != null) {
-            User currentUser = userRepository.findById(currentUserId).orElse(null);
+            User currentUser = ctx.currentUser;   // 预取，不再逐节点 findById
             if (currentUser != null) {
                 if (currentUser.getRole() == User.Role.STUDENT) {
-                    StudentGoalProgress sp = studentGoalProgressRepository
-                            .findByGoalAndStudent(g, currentUser).orElse(null);
+                    StudentGoalProgress sp = ctx.progressByGoalId.get(g.getId());
                     if (sp != null) {
                         r.setStudentProgress(sp.getProgress());
                         r.setStudentStatus(sp.getStatus().name());
@@ -965,8 +1061,8 @@ public class GoalService {
                         r.setCanComment(true);
                     }
                     // 学生看到目标的所有公开评论（群聊）
-                    List<GoalComment> publicComments = goalCommentRepository
-                            .findByGoalAndVisibilityOrderByCreatedAtAsc(g, "PUBLIC");
+                    List<GoalComment> publicComments =
+                            ctx.publicCommentsByGoalId.getOrDefault(g.getId(), Collections.emptyList());
                     if (!publicComments.isEmpty()) {
                         r.setComments(publicComments.stream()
                                 .map(c -> toCommentResponse(c, currentUserId))
@@ -979,8 +1075,8 @@ public class GoalService {
                         r.setCanComment(true);
                     }
                     // 加载所有公开评论
-                    List<GoalComment> allComments = goalCommentRepository
-                            .findByGoalAndVisibilityOrderByCreatedAtAsc(g, "PUBLIC");
+                    List<GoalComment> allComments =
+                            ctx.publicCommentsByGoalId.getOrDefault(g.getId(), Collections.emptyList());
                     if (!allComments.isEmpty()) {
                         r.setComments(allComments.stream()
                                 .map(c -> toCommentResponse(c, currentUserId))

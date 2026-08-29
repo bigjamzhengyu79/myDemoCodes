@@ -128,8 +128,11 @@ export const useGoalStore = defineStore('goal', () => {
     try {
       await goalApi.updateMyProgress(goalId, data)
     } catch (e) {
-      // API 失败时回滚：重新拉取全量数据
-      await fetchGoals()
+      // 超时不回滚，理由同 toggleCopyable：请求可能已在服务端生效。
+      // 且冷启动时 fetchGoals 同样会超时，回滚本身也做不成。
+      if (!e.isTimeout) {
+        await fetchGoals()
+      }
       throw e
     }
   }
@@ -142,7 +145,10 @@ export const useGoalStore = defineStore('goal', () => {
     try {
       await goalApi.toggleCopyable(goalId, copyable)
     } catch (e) {
-      if (currentGoal) {
+      // 超时不回滚：axios 超时只代表客户端不再等待，请求可能仍在服务端执行并成功。
+      // 若照常回滚，界面会显示 OFF 而数据库是 ON，刷新后状态突变。
+      // 保留乐观值，由调用方提示用户刷新确认。
+      if (currentGoal && !e.isTimeout) {
         currentGoal.copyable = previousCopyable
       }
       throw e
