@@ -7,12 +7,25 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface GoalCommentRepository extends JpaRepository<GoalComment, Long> {
 
     /** 获取某个目标的所有公开评论（按时间升序） */
     List<GoalComment> findByGoalAndVisibilityOrderByCreatedAtAsc(Goal goal, String visibility);
+
+    /**
+     * 批量版：一次取回多个目标的公开评论，理由同 GoalAssigneeRepository.findByGoalIdIn。
+     * JOIN FETCH author/student 是因为 toCommentResponse 会读它们的 realName，
+     * 否则每条评论都会再触发一次懒加载查询。
+     */
+    @Query("SELECT c FROM GoalComment c " +
+           "JOIN FETCH c.author LEFT JOIN FETCH c.student " +
+           "WHERE c.goal.id IN :goalIds AND c.visibility = :visibility " +
+           "ORDER BY c.createdAt ASC")
+    List<GoalComment> findByGoalIdInAndVisibility(@Param("goalIds") Collection<Long> goalIds,
+                                                  @Param("visibility") String visibility);
 
     /** 获取某个学生对自己某个目标的所有公开评论 */
     List<GoalComment> findByGoalAndStudentAndVisibilityOrderByCreatedAtAsc(Goal goal, User student, String visibility);

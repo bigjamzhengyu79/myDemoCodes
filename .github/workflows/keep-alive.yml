@@ -1,0 +1,78 @@
+# 后端保活
+#
+# 【为什么需要】
+# 后端部署在 Render 免费实例上，约 15 分钟无请求就会休眠。
+# 休眠后的首次请求要重新拉起整个 Spring Boot 应用，实测需要 90 秒以上，
+# 期间用户点任何按钮都会等到超时。
+#
+# 这个定时任务每 10 分钟打一次 /api/users/health（permitAll、不查库、最轻），
+# 让实例保持唤醒状态。
+#
+# 【注意：这只解决冷启动，不解决慢查询】
+# 目标列表接口曾经在热机状态下也要 10～80 秒，那是 GoalService.toResponse 的
+# N+1 问题，已单独修复（见 GoalService 中 ResponseContext 的注释）。
+# 保活和那个修复解决的是两件不同的事，缺一不可。
+#
+# 【已知限制】
+# GitHub Actions 的 schedule 在整点前后高峰期会被延迟，偶尔跳过一两次执行是正常的，
+# 不保证严格 10 分钟。作为保活手段这个精度足够。
+name: Keep Backend Alive
+
+on:
+  schedule:
+    # 每 10 分钟。cron 是 UTC，但保活与时区无关
+    - cron: '*/10 * * * *'
+  # 支持在 Actions 页面手动触发，便于部署后立刻唤醒实例
+  workflow_dispatch:
+
+# 避免上一次还没跑完就开下一次
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping health endpoint
+        run: |
+          URL="https://mydemocodes.onrender.com/api/users/health"
+
+          # 单次 ping。
+          # --max-time 180：实例正在冷启动时这次请求本身就会很慢，
+          # 这是预期行为 —— 我们要的就是它把实例唤醒，所以必须等，不能早退。
+          #
+          # 注意两个写法上的坑：
+          #  1) curl 失败时 %{http_code} 已经输出了 "000"，若再写 `|| echo 000`
+          #     两段输出会拼成 "000000"，条件判断就永远不成立。所以用 if 判断退出码。
+          #  2) body 文件必须每次清空，否则 curl 失败时会残留上一次的成功响应，
+          #     日志里出现「ping 失败但 body 是 ok」的误导信息。
+          ping_once() {
+            : > /tmp/body.txt
+            if STATUS=$(curl -s -o /tmp/body.txt -w '%{http_code}' --max-time 180 "$URL"); then
+              :
+            else
+              STATUS="000"
+            fi
+            echo "status=$STATUS body=$(cat /tmp/body.txt)"
+            [ "$STATUS" = "200" ]
+          }
+
+          if ping_once; then
+            echo "✅ 后端存活"
+            exit 0
+          fi
+
+          # 一次失败不代表服务挂了：可能正好赶上冷启动尾声或 Render 侧抖动。
+          # 再试一次，此时实例通常已经起来了。
+          echo "⚠️ 首次 ping 未成功，10 秒后重试"
+          sleep 10
+
+          if ping_once; then
+            echo "✅ 后端存活（重试后）"
+            exit 0
+          fi
+
+          echo "❌ 两次 ping 均失败，后端可能确实不可用"
+          exit 1

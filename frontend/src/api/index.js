@@ -1,10 +1,17 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
+import { attachColdStartTracking } from './coldStart'
+
+// 冷启动说明见 goalApi.js —— Render 免费实例休眠后首次请求需 90 秒以上。
+// 登录接口同样走这个实例，10 秒超时会让用户在冷启动期间连登录都做不到。
+const REQUEST_TIMEOUT = 90000
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL + '/api' : '/api',
-  timeout: 10000
+  timeout: REQUEST_TIMEOUT
 })
+
+attachColdStartTracking(api)
 
 api.interceptors.request.use(config => {
   const auth = useAuthStore()
