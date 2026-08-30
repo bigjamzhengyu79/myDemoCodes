@@ -571,8 +571,8 @@ public class GoalService {
         target.setManager(manager);
         target.setParent(newParent);
         target.setDepth(newParent != null ? newParent.getDepth() + 1 : 1);
-        target.setClassGroup(source.getClassGroup());
-        target.setAssignee(source.getAssignee());
+        target.setClassGroup(null);   // 不继承原作者的班级
+        target.setAssignee(null);     // 不继承原作者指定的负责人
         target.setPlannedStart(null);
         target.setPlannedEnd(null);
         target.setActualStart(null);
@@ -580,18 +580,10 @@ public class GoalService {
         // 保存当前层目标
         Goal saved = goalRepository.save(target);
 
-        // 复制多对多学生分配
-        List<GoalAssignee> sourceAssignees = goalAssigneeRepository.findByGoal(source);
-        if (sourceAssignees != null && !sourceAssignees.isEmpty()) {
-            for (GoalAssignee ga : sourceAssignees) {
-                GoalAssignee newGa = new GoalAssignee();
-                newGa.setGoal(saved);
-                newGa.setStudent(ga.getStudent());
-                goalAssigneeRepository.save(newGa);
-                // 自动创建学生个人进度记录
-                initStudentProgress(saved, ga.getStudent().getId());
-            }
-        }
+        // 【不复制学生分配】——「可复制」是跨老师共享模板，复制的是结构不是名单。
+        // 若把源目标的学生一并带过来，老师 B 复制老师 A 的模板后，A 班的学生会
+        // 被分配到 B 的目标下并自动生成进度记录。学生应由复制者自己指定。
+        // 同理上面也不再继承 classGroup / assignee（都属于原作者）。
 
         // 复制关联作业
         List<GoalAssignment> sourceAssignments = goalAssignmentRepository.findByGoal(source);
@@ -634,25 +626,15 @@ public class GoalService {
             target.setManager(manager);
             target.setParent(newParent);
             target.setDepth(newParent.getDepth() + 1);
-            target.setClassGroup(sub.getClassGroup());
-            target.setAssignee(sub.getAssignee());
+            target.setClassGroup(null);   // 不继承原作者的班级
+            target.setAssignee(null);     // 不继承原作者指定的负责人
             target.setPlannedStart(null);
             target.setPlannedEnd(null);
             target.setActualStart(null);
             target.setActualEnd(null);
             Goal saved = goalRepository.save(target);
 
-            // 复制多对多学生分配
-            List<GoalAssignee> sourceAssignees = goalAssigneeRepository.findByGoal(sub);
-            if (sourceAssignees != null && !sourceAssignees.isEmpty()) {
-                for (GoalAssignee ga : sourceAssignees) {
-                    GoalAssignee newGa = new GoalAssignee();
-                    newGa.setGoal(saved);
-                    newGa.setStudent(ga.getStudent());
-                    goalAssigneeRepository.save(newGa);
-                    initStudentProgress(saved, ga.getStudent().getId());
-                }
-            }
+            // 【不复制学生分配】理由同 copyGoalRecursive
 
             // 复制关联作业
             List<GoalAssignment> sourceAssignments = goalAssignmentRepository.findByGoal(sub);

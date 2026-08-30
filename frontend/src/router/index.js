@@ -4,6 +4,7 @@ import UserList from '../views/UserList.vue'
 import ClassGroupList from '../views/ClassGroupList.vue'
 import GoalView from '../views/GoalView.vue'
 import GoalStudentProgressView from '../views/GoalStudentProgressView.vue'
+import GoalTemplateLibraryView from '../views/GoalTemplateLibraryView.vue'
 import UnitTestView from '../views/UnitTestView.vue'
 import LoginView from '../views/homework/LoginView.vue'
 import LayoutView from '../views/homework/LayoutView.vue'
@@ -27,6 +28,8 @@ const routes = [
   { path: '/math-goals', redirect: '/goals' },
   { path: '/goals', component: GoalView },
   { path: '/goals/student-progress', component: GoalStudentProgressView, meta: { requiresAuth: true } },
+  // 目标模板库：浏览所有老师共享的可复制目标（需登录才能看到作者信息与复制）
+  { path: '/goals/templates', component: GoalTemplateLibraryView, meta: { requiresAuth: true } },
   ...(showUnitTest ? [{ path: '/unit-test', component: UnitTestView }] : []),
   { path: '/login', component: LoginView },
   // 打印/导出 PDF 专用页面：独立版式，不套 LayoutView 侧边栏
