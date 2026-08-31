@@ -53,7 +53,7 @@
         <Transition name="slide">
           <div v-if="expanded.has(t.id)" class="tpl-body">
             <div v-if="t.assignmentTitles?.length" class="section">
-              <div class="section-label">📝 关联作业</div>
+              <div class="section-label">📝 原作者关联的作业（仅供参考，不会复制）</div>
               <div class="assignment-tags">
                 <span v-for="(name, i) in t.assignmentTitles" :key="i" class="tag">{{ name }}</span>
               </div>
@@ -68,8 +68,8 @@
             </div>
 
             <div class="copy-note">
-              复制后：标题、描述、子目标结构与关联作业会带过来；
-              <strong>学生与班级不会继承</strong>，需要你自己指定。
+              复制后只带来<strong>标题、描述与子目标结构</strong>；
+              学生、班级与关联作业都不会继承 —— 它们属于原作者，需要你自己指定。
             </div>
           </div>
         </Transition>
@@ -165,16 +165,16 @@ async function fetchTemplates() {
 
 /**
  * 直接复制该模板，成功后回到目标管理页。
- * 复制品归当前用户所有，学生/班级为空，需要用户自行补充 —— 所以提示语要说清楚。
+ * 复制品归当前用户所有，学生/班级/作业均为空，需用户自行补充 —— 提示语必须说清楚。
  */
 async function use(t) {
-  if (!confirm(`确定使用模板「${t.title}」？\n\n将为你创建一份副本（含子目标与关联作业）。\n学生和班级不会复制，需要你在目标管理页自行分配。`)) {
+  if (!confirm(`确定使用模板「${t.title}」？\n\n将为你创建一份副本（含完整子目标结构）。\n学生、班级与关联作业不会复制，需要你在目标管理页自行指定。`)) {
     return
   }
   copyingId.value = t.id
   try {
     await goalApi.copyGoal(t.id)
-    alert('已创建副本，请在目标管理页为其分配学生。')
+    alert('已创建副本，请在目标管理页为其指定学生、班级与关联作业。')
     router.push('/goals')
   } catch (e) {
     // 超时的结果未知，不能说成失败（同 GoalCard 的处理）

@@ -7,6 +7,8 @@ import com.example.goal.entity.*;
 import com.example.goal.repository.*;
 import com.example.repository.ClassGroupRepository;
 import com.example.repository.UserRepository;
+import com.example.homework.repository.AssignmentRepository;
+import com.example.homework.entity.Assignment;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,6 +31,7 @@ public class GoalService {
     private final StudentGoalProgressRepository studentGoalProgressRepository;
     private final UserRepository userRepository;
     private final ClassGroupRepository classGroupRepository;
+    private final AssignmentRepository assignmentRepository;
 
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
@@ -585,16 +588,11 @@ public class GoalService {
         // 被分配到 B 的目标下并自动生成进度记录。学生应由复制者自己指定。
         // 同理上面也不再继承 classGroup / assignee（都属于原作者）。
 
-        // 复制关联作业
-        List<GoalAssignment> sourceAssignments = goalAssignmentRepository.findByGoal(source);
-        if (sourceAssignments != null && !sourceAssignments.isEmpty()) {
-            for (GoalAssignment ga : sourceAssignments) {
-                GoalAssignment newGa = new GoalAssignment();
-                newGa.setGoal(saved);
-                newGa.setAssignmentId(ga.getAssignmentId());
-                goalAssignmentRepository.save(newGa);
-            }
-        }
+        // 【不复制关联作业】作业同样是原作者的私有资源：
+        // /api/assignments 按创建者过滤（AssignmentService.listByTeacher），
+        // 复制者在编辑弹窗里根本看不到这些作业 —— 关联着却不可见，
+        // 而且一旦他编辑并保存目标，replaceAssignments 会用表单里的 id 覆盖，
+        // 导致关联被静默移除。与学生/班级一致，作业也由复制者自行选择。
 
         // 递归复制子目标
         List<Goal> subGoals = source.getSubGoals();
@@ -636,16 +634,7 @@ public class GoalService {
 
             // 【不复制学生分配】理由同 copyGoalRecursive
 
-            // 复制关联作业
-            List<GoalAssignment> sourceAssignments = goalAssignmentRepository.findByGoal(sub);
-            if (sourceAssignments != null && !sourceAssignments.isEmpty()) {
-                for (GoalAssignment ga : sourceAssignments) {
-                    GoalAssignment newGa = new GoalAssignment();
-                    newGa.setGoal(saved);
-                    newGa.setAssignmentId(ga.getAssignmentId());
-                    goalAssignmentRepository.save(newGa);
-                }
-            }
+            // 【不复制关联作业】理由同 copyGoalRecursive
 
             // 递归复制子目标的子目标
             copySubGoalsRecursive(sub, saved, manager);
@@ -889,18 +878,22 @@ public class GoalService {
         final Map<Long, List<GoalAssignment>> assignmentsByGoalId;
         final Map<Long, List<GoalComment>> publicCommentsByGoalId;
         final Map<Long, StudentGoalProgress> progressByGoalId;
+        /** assignmentId -> 作业标题。整棵树上的 id 去重后一次查回 */
+        final Map<Long, String> assignmentTitleById;
 
         ResponseContext(Long currentUserId, User currentUser,
                         Map<Long, List<GoalAssignee>> assigneesByGoalId,
                         Map<Long, List<GoalAssignment>> assignmentsByGoalId,
                         Map<Long, List<GoalComment>> publicCommentsByGoalId,
-                        Map<Long, StudentGoalProgress> progressByGoalId) {
+                        Map<Long, StudentGoalProgress> progressByGoalId,
+                        Map<Long, String> assignmentTitleById) {
             this.currentUserId = currentUserId;
             this.currentUser = currentUser;
             this.assigneesByGoalId = assigneesByGoalId;
             this.assignmentsByGoalId = assignmentsByGoalId;
             this.publicCommentsByGoalId = publicCommentsByGoalId;
             this.progressByGoalId = progressByGoalId;
+            this.assignmentTitleById = assignmentTitleById;
         }
     }
 
@@ -930,7 +923,8 @@ public class GoalService {
         if (goalIds.isEmpty()) {
             return new ResponseContext(currentUserId, currentUser,
                     Collections.emptyMap(), Collections.emptyMap(),
-                    Collections.emptyMap(), Collections.emptyMap());
+                    Collections.emptyMap(), Collections.emptyMap(),
+                    Collections.emptyMap());
         }
 
         Map<Long, List<GoalAssignee>> assignees = goalAssigneeRepository.findByGoalIdIn(goalIds)
@@ -953,8 +947,23 @@ public class GoalService {
                     .collect(Collectors.toMap(sp -> sp.getGoal().getId(), sp -> sp, (a, b) -> a));
         }
 
+        // 作业标题：把整棵树上出现的 assignmentId 去重后一次查回。
+        // 历史实现直接拼 "作业#" + id 当标题（从未真正查库），界面上只能看到
+        // 「作业#12」这种占位符，老师无法辨认关联的究竟是哪份作业。
+        // 注意 GoalAssignment.assignmentId 是裸 Long、无外键约束，作业被删除后
+        // 关联记录仍残留，此时查不到标题 —— toResponse 会回退为占位符。
+        Set<Long> assignmentIds = assignments.values().stream()
+                .flatMap(List::stream)
+                .map(GoalAssignment::getAssignmentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> assignmentTitles = assignmentIds.isEmpty()
+                ? Collections.emptyMap()
+                : assignmentRepository.findAllById(assignmentIds).stream()
+                        .collect(Collectors.toMap(Assignment::getId, Assignment::getTitle, (a, b) -> a));
+
         return new ResponseContext(currentUserId, currentUser,
-                assignees, assignments, publicComments, progress);
+                assignees, assignments, publicComments, progress, assignmentTitles);
     }
 
     /**
@@ -1025,9 +1034,11 @@ public class GoalService {
             r.setAssignmentIds(goalAssignments.stream()
                     .map(GoalAssignment::getAssignmentId)
                     .collect(Collectors.toList()));
-            // 作业标题需要单独查询（简化：只返回 ID，前端自己映射）
+            // 标题取自预取 Map；查不到说明作业已被删除（无外键约束，关联会残留），
+            // 回退为带 id 的占位符便于排查
             r.setAssignmentTitles(goalAssignments.stream()
-                    .map(ga -> "作业#" + ga.getAssignmentId())
+                    .map(ga -> ctx.assignmentTitleById.getOrDefault(
+                            ga.getAssignmentId(), "作业#" + ga.getAssignmentId() + "（已删除）"))
                     .collect(Collectors.toList()));
         } else {
             r.setAssignmentIds(Collections.emptyList());

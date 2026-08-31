@@ -22,7 +22,7 @@
               </option>
             </select>
             <div v-if="selectedCopyGoal" class="copy-info">
-              已复制：标题、描述、子目标结构、{{ selectedCopyGoal.assignmentIds?.length || 0 }} 个作业<br>学生与班级需自行指定（不从模板继承）
+              已复制：标题、描述、子目标结构<br>学生、班级与关联作业需自行指定（均不从模板继承）
             </div>
           </div>
         </div>
@@ -437,7 +437,8 @@ function onCopyGoalChange() {
       // 后端 copySubGoalsRecursive 同样不再复制这两项，两侧保持一致。
       assigneeIds: [],
       classGroupId: null,
-      assignmentIds: Array.isArray(g.assignmentIds) ? [...g.assignmentIds] : [],
+      // 作业同样不预填：属于原作者的资源，复制者在候选列表里看不到
+      assignmentIds: [],
     }
   }
 }
