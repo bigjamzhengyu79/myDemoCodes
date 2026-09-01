@@ -96,6 +96,13 @@ const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   /** 班级下拉选项，由父组件传入（GoalModal 已经加载过，不重复请求） */
   classGroups: { type: Array, default: () => [] },
+  /**
+   * 已知的作业标题 { id: title }，用于初始化右栏显示。
+   * 编辑目标时，已关联的作业未必落在候选列表的第一页 —— 若只靠翻页时
+   * 见到的数据填充缓存，这些作业会一直显示成「作业#2」。
+   * 目标数据本身带有 assignmentTitles，父组件直接传进来即可。
+   */
+  knownTitles: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -116,11 +123,16 @@ const PAGE_SIZE = 20
  * 已选作业的标题缓存：id -> title。
  *
  * 右栏要显示已选作业的名字，但翻页/筛选后这些作业可能不在当前页的 items 里，
- * 光靠 items 查不到。所以每次见到作业就记下标题；
- * 编辑既有目标时初始选中的 id 可能一次都没出现在候选页中 —— 此时回退显示
- * 「作业#12」，而不是留空让用户不知道选了什么。
+ * 光靠 items 查不到。所以每次见到作业就记下标题，并用 knownTitles 预填。
+ * 两者都没有时才回退成「作业#12」（例如作业已被删除），而不是留空。
  */
-const titleCache = ref({})
+const titleCache = ref({ ...props.knownTitles })
+
+// 父组件异步拿到目标数据后 knownTitles 才有值，需要合并进来；
+// 已从接口取得的标题优先级更高，不被覆盖
+watch(() => props.knownTitles, (t) => {
+  titleCache.value = { ...t, ...titleCache.value }
+}, { deep: true })
 
 const hasFilter = computed(() =>
   !!keyword.value.trim() || classGroupId.value !== null || onlyOngoing.value

@@ -104,7 +104,8 @@
           <div class="field">
             <!-- 作业会随学期不断累积，原先一次性渲染成复选框长列表无法操作，
                  改用带搜索/筛选/分页的选择器（与题库的 QuestionPicker 同一套交互） -->
-            <AssignmentPicker v-model="form.assignmentIds" :class-groups="classGroups" />
+            <AssignmentPicker v-model="form.assignmentIds" :class-groups="classGroups"
+                              :known-titles="knownAssignmentTitles" />
           </div>
 
           <div class="field-section">分配学生</div>
@@ -182,6 +183,19 @@ const authStore = useAuthStore()
 const saving = ref(false)
 
 const classGroups = ref([])
+/**
+ * 目标已关联作业的 id -> 标题映射，喂给 AssignmentPicker 初始化右栏。
+ * 后端 GoalResponse 里 assignmentIds 与 assignmentTitles 是等长且一一对应的两个数组。
+ */
+const knownAssignmentTitles = computed(() => {
+  const ids = props.goalData?.assignmentIds
+  const titles = props.goalData?.assignmentTitles
+  if (!Array.isArray(ids) || !Array.isArray(titles)) return {}
+  const map = {}
+  ids.forEach((id, i) => { if (titles[i]) map[id] = titles[i] })
+  return map
+})
+
 const copyableGoals = ref([])
 const selectedCopyGoalId = ref(null)
 const selectedCopyGoal = ref(null)
