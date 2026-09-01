@@ -22,7 +22,7 @@
               </option>
             </select>
             <div v-if="selectedCopyGoal" class="copy-info">
-              已复制：标题、描述、班级、{{ selectedCopyGoal.assigneeIds?.length || 0 }} 个学生、{{ selectedCopyGoal.assignmentIds?.length || 0 }} 个作业
+              已复制：标题、描述、子目标结构<br>学生、班级与关联作业需自行指定（均不从模板继承）
             </div>
           </div>
         </div>
@@ -102,30 +102,10 @@
           <!-- 关联作业 -->
           <div class="field-section">关联作业</div>
           <div class="field">
-            <div class="assignment-checkbox-list">
-              <div v-if="assignments.length === 0" class="assign-empty-sm">暂无已发布的作业</div>
-              <label
-                v-for="a in assignments"
-                :key="a.id"
-                class="assignment-checkbox-item"
-                :class="{ checked: form.assignmentIds.includes(a.id) }"
-              >
-                <input
-                  type="checkbox"
-                  :value="a.id"
-                  :checked="form.assignmentIds.includes(a.id)"
-                  @change="toggleAssignment(a.id)"
-                />
-                <span>{{ a.title }}</span>
-                <span v-if="a.classGroupName" class="assignment-class-tag">{{ a.classGroupName }}</span>
-              </label>
-            </div>
-            <div v-if="assignments.length > 0" class="assignment-actions">
-              <button type="button" class="btn-link" @click="selectAllAssignments">全选</button>
-              <span class="sep">|</span>
-              <button type="button" class="btn-link" @click="deselectAllAssignments">全不选</button>
-              <span class="assignment-count">已选 {{ form.assignmentIds.length }} 个</span>
-            </div>
+            <!-- 作业会随学期不断累积，原先一次性渲染成复选框长列表无法操作，
+                 改用带搜索/筛选/分页的选择器（与题库的 QuestionPicker 同一套交互） -->
+            <AssignmentPicker v-model="form.assignmentIds" :class-groups="classGroups"
+                              :known-titles="knownAssignmentTitles" />
           </div>
 
           <div class="field-section">分配学生</div>
@@ -186,6 +166,7 @@ import { goalApi } from '@/api/goalApi'
 // 用于复制操作的 store（仅调用 copy API）
 import { useGoalStore } from '@/stores/goalStore'
 import { useAuthStore } from '@/store/auth'
+import AssignmentPicker from './AssignmentPicker.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -202,7 +183,19 @@ const authStore = useAuthStore()
 const saving = ref(false)
 
 const classGroups = ref([])
-const assignments = ref([])
+/**
+ * 目标已关联作业的 id -> 标题映射，喂给 AssignmentPicker 初始化右栏。
+ * 后端 GoalResponse 里 assignmentIds 与 assignmentTitles 是等长且一一对应的两个数组。
+ */
+const knownAssignmentTitles = computed(() => {
+  const ids = props.goalData?.assignmentIds
+  const titles = props.goalData?.assignmentTitles
+  if (!Array.isArray(ids) || !Array.isArray(titles)) return {}
+  const map = {}
+  ids.forEach((id, i) => { if (titles[i]) map[id] = titles[i] })
+  return map
+})
+
 const copyableGoals = ref([])
 const selectedCopyGoalId = ref(null)
 const selectedCopyGoal = ref(null)
@@ -265,24 +258,6 @@ const removeStudent = (sid) => {
 
 const onStudentSearch = () => { /* 触发 computed */ }
 
-// ====== 作业选择（checkbox 模式） ======
-function toggleAssignment(aid) {
-  const arr = form.value.assignmentIds || []
-  const idx = arr.indexOf(aid)
-  if (idx >= 0) {
-    form.value.assignmentIds = arr.filter(x => x !== aid)
-  } else {
-    form.value.assignmentIds = [...arr, aid]
-  }
-}
-
-function selectAllAssignments() {
-  form.value.assignmentIds = assignments.value.map(a => a.id)
-}
-
-function deselectAllAssignments() {
-  form.value.assignmentIds = []
-}
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const http = axios.create({
@@ -340,15 +315,6 @@ async function fetchClassGroups() {
   }
 }
 
-async function fetchAssignments() {
-  try {
-    const resp = await http.get('/assignments')
-    const list = Array.isArray(resp) ? resp : (resp?.data || [])
-    assignments.value = list.filter(a => a.status === 'PUBLISHED')
-  } catch (e) {
-    assignments.value = []
-  }
-}
 
 async function fetchCopyableGoals() {
   try {
@@ -371,7 +337,6 @@ function copyGoalAuthor(g) {
 onMounted(() => {
   fetchStudents()
   fetchClassGroups()
-  fetchAssignments()
   fetchCopyableGoals()
 })
 
@@ -433,9 +398,12 @@ function onCopyGoalChange() {
       actualEnd: '',
       progress: 0,
       owners: g.owners || '',
-      assigneeIds: Array.isArray(g.assigneeIds) ? [...g.assigneeIds] : [],
-      classGroupId: g.classGroupId || null,
-      assignmentIds: Array.isArray(g.assignmentIds) ? [...g.assignmentIds] : [],
+      // 不预填学生与班级：模板可能来自其他老师，其名单/班级与复制者无关。
+      // 后端 copySubGoalsRecursive 同样不再复制这两项，两侧保持一致。
+      assigneeIds: [],
+      classGroupId: null,
+      // 作业同样不预填：属于原作者的资源，复制者在候选列表里看不到
+      assignmentIds: [],
     }
   }
 }
@@ -477,7 +445,10 @@ async function submit() {
   display: flex; align-items: center; justify-content: center; z-index: 1000;
 }
 .modal-box {
-  background: #fff; border-radius: 12px; width: 520px; max-width: 95vw;
+  /* 760px：作业选择器是双栏（候选 1fr + 已选 260px），
+     原先 520px 减去 body 两侧 22px 内边距后左栏仅剩 ~206px，作业标题被截断得没法读。
+     用 min() 而不是固定值 + max-width，窄屏下自动退让；选择器自身在视口 660px 以下会转为单栏。 */
+  background: #fff; border-radius: 12px; width: min(760px, 95vw);
   max-height: 90vh; overflow-y: auto; border: 0.5px solid #ddd;
 }
 .modal-header {
@@ -569,36 +540,4 @@ async function submit() {
 .student-item.picked { background: #E1F5EE; color: #0F6E56; }
 .student-class { color: #888; font-size: 11px; }
 
-/* 作业选择 checkbox 列表 */
-.assignment-checkbox-list {
-  background: #f9fafb; border: 1px solid #eef0f2; border-radius: 10px;
-  padding: 8px; max-height: 180px; overflow-y: auto;
-}
-.assignment-checkbox-item {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 8px; cursor: pointer; border-radius: 6px;
-  font-size: 12px; color: #333; transition: background .15s;
-}
-.assignment-checkbox-item:hover { background: #f0faf5; }
-.assignment-checkbox-item.checked { background: #E1F5EE; color: #0F6E56; }
-.assignment-checkbox-item input[type="checkbox"] {
-  width: auto; margin: 0; cursor: pointer; accent-color: #1D9E75;
-}
-.assignment-class-tag {
-  font-size: 10px; color: #185FA5; background: #e8f4fd;
-  border-radius: 4px; padding: 0 5px; margin-left: auto; white-space: nowrap;
-}
-.assignment-actions {
-  display: flex; align-items: center; gap: 6px; margin-top: 6px;
-  font-size: 12px;
-}
-.btn-link {
-  border: none; background: none; color: #185FA5; cursor: pointer;
-  font-size: 12px; padding: 0; text-decoration: none;
-}
-.btn-link:hover { text-decoration: underline; }
-.sep { color: #ccc; font-size: 11px; }
-.assignment-count {
-  margin-left: auto; font-size: 11px; color: #888;
-}
 </style>

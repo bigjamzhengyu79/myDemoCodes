@@ -6,6 +6,7 @@
         <p class="page-sub">父目标可分解为若干子目标，进度自动汇总</p>
       </div>
       <div v-if="store.isTeacherView" class="flex gap-2">
+        <button class="btn-lib" @click="$router.push('/goals/templates')">📋 模板库</button>
         <button class="btn-add" @click="$router.push('/goals/student-progress')">📊 学生执行情况</button>
         <button class="btn-add" @click="openCreate">+ 新增父目标</button>
       </div>
@@ -191,6 +192,12 @@ async function handleUpdateMyProgress({ goalId, progress, status, actualStart, a
   padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
 }
 .btn-add:hover { background: #0F6E56; }
+/* 模板库入口做次级样式：与「新增父目标」区分主次，避免三个绿按钮并排 */
+.btn-lib {
+  background: #fff; color: #0F6E56; border: 0.5px solid #1D9E75; border-radius: 8px;
+  padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.btn-lib:hover { background: #E1F5EE; }
 .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 1.25rem; }
 .stat-card { background: #f5f5f3; border-radius: 8px; padding: 12px 14px; }
 .stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
