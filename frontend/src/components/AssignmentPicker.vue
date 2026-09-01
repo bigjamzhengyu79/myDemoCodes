@@ -278,7 +278,12 @@ onMounted(load)
 .ap-icon-btn.danger { color: #B91C1C; border-color: #FCA5A5; }
 .ap-icon-btn.danger:hover { background: #FEF2F2; }
 
-@media (max-width: 560px) {
+/* 断点按视口算，但弹窗宽度是 min(760px, 95vw)、内容区还要再减 44px 内边距，
+   两者不是一回事：视口 600px 时容器只有 ~526px，若按 560px 断点此时仍是双栏，
+   左栏会被挤到 ~256px。取 660px 让容器降到 ~583px 前就转单栏。 */
+@media (max-width: 660px) {
   .ap { grid-template-columns: 1fr; }
+  /* 单栏时两块各自压缩，避免整体过高需要滚动 */
+  .ap-pane { min-height: 180px; max-height: 220px; }
 }
 </style>

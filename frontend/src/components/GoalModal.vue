@@ -431,7 +431,10 @@ async function submit() {
   display: flex; align-items: center; justify-content: center; z-index: 1000;
 }
 .modal-box {
-  background: #fff; border-radius: 12px; width: 520px; max-width: 95vw;
+  /* 760px：作业选择器是双栏（候选 1fr + 已选 260px），
+     原先 520px 减去 body 两侧 22px 内边距后左栏仅剩 ~206px，作业标题被截断得没法读。
+     用 min() 而不是固定值 + max-width，窄屏下自动退让；选择器自身在视口 660px 以下会转为单栏。 */
+  background: #fff; border-radius: 12px; width: min(760px, 95vw);
   max-height: 90vh; overflow-y: auto; border: 0.5px solid #ddd;
 }
 .modal-header {
