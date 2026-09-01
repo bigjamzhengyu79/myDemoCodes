@@ -102,30 +102,9 @@
           <!-- 关联作业 -->
           <div class="field-section">关联作业</div>
           <div class="field">
-            <div class="assignment-checkbox-list">
-              <div v-if="assignments.length === 0" class="assign-empty-sm">暂无已发布的作业</div>
-              <label
-                v-for="a in assignments"
-                :key="a.id"
-                class="assignment-checkbox-item"
-                :class="{ checked: form.assignmentIds.includes(a.id) }"
-              >
-                <input
-                  type="checkbox"
-                  :value="a.id"
-                  :checked="form.assignmentIds.includes(a.id)"
-                  @change="toggleAssignment(a.id)"
-                />
-                <span>{{ a.title }}</span>
-                <span v-if="a.classGroupName" class="assignment-class-tag">{{ a.classGroupName }}</span>
-              </label>
-            </div>
-            <div v-if="assignments.length > 0" class="assignment-actions">
-              <button type="button" class="btn-link" @click="selectAllAssignments">全选</button>
-              <span class="sep">|</span>
-              <button type="button" class="btn-link" @click="deselectAllAssignments">全不选</button>
-              <span class="assignment-count">已选 {{ form.assignmentIds.length }} 个</span>
-            </div>
+            <!-- 作业会随学期不断累积，原先一次性渲染成复选框长列表无法操作，
+                 改用带搜索/筛选/分页的选择器（与题库的 QuestionPicker 同一套交互） -->
+            <AssignmentPicker v-model="form.assignmentIds" :class-groups="classGroups" />
           </div>
 
           <div class="field-section">分配学生</div>
@@ -186,6 +165,7 @@ import { goalApi } from '@/api/goalApi'
 // 用于复制操作的 store（仅调用 copy API）
 import { useGoalStore } from '@/stores/goalStore'
 import { useAuthStore } from '@/store/auth'
+import AssignmentPicker from './AssignmentPicker.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -202,7 +182,6 @@ const authStore = useAuthStore()
 const saving = ref(false)
 
 const classGroups = ref([])
-const assignments = ref([])
 const copyableGoals = ref([])
 const selectedCopyGoalId = ref(null)
 const selectedCopyGoal = ref(null)
@@ -265,24 +244,6 @@ const removeStudent = (sid) => {
 
 const onStudentSearch = () => { /* 触发 computed */ }
 
-// ====== 作业选择（checkbox 模式） ======
-function toggleAssignment(aid) {
-  const arr = form.value.assignmentIds || []
-  const idx = arr.indexOf(aid)
-  if (idx >= 0) {
-    form.value.assignmentIds = arr.filter(x => x !== aid)
-  } else {
-    form.value.assignmentIds = [...arr, aid]
-  }
-}
-
-function selectAllAssignments() {
-  form.value.assignmentIds = assignments.value.map(a => a.id)
-}
-
-function deselectAllAssignments() {
-  form.value.assignmentIds = []
-}
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 const http = axios.create({
@@ -340,15 +301,6 @@ async function fetchClassGroups() {
   }
 }
 
-async function fetchAssignments() {
-  try {
-    const resp = await http.get('/assignments')
-    const list = Array.isArray(resp) ? resp : (resp?.data || [])
-    assignments.value = list.filter(a => a.status === 'PUBLISHED')
-  } catch (e) {
-    assignments.value = []
-  }
-}
 
 async function fetchCopyableGoals() {
   try {
@@ -371,7 +323,6 @@ function copyGoalAuthor(g) {
 onMounted(() => {
   fetchStudents()
   fetchClassGroups()
-  fetchAssignments()
   fetchCopyableGoals()
 })
 
@@ -572,36 +523,4 @@ async function submit() {
 .student-item.picked { background: #E1F5EE; color: #0F6E56; }
 .student-class { color: #888; font-size: 11px; }
 
-/* 作业选择 checkbox 列表 */
-.assignment-checkbox-list {
-  background: #f9fafb; border: 1px solid #eef0f2; border-radius: 10px;
-  padding: 8px; max-height: 180px; overflow-y: auto;
-}
-.assignment-checkbox-item {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 8px; cursor: pointer; border-radius: 6px;
-  font-size: 12px; color: #333; transition: background .15s;
-}
-.assignment-checkbox-item:hover { background: #f0faf5; }
-.assignment-checkbox-item.checked { background: #E1F5EE; color: #0F6E56; }
-.assignment-checkbox-item input[type="checkbox"] {
-  width: auto; margin: 0; cursor: pointer; accent-color: #1D9E75;
-}
-.assignment-class-tag {
-  font-size: 10px; color: #185FA5; background: #e8f4fd;
-  border-radius: 4px; padding: 0 5px; margin-left: auto; white-space: nowrap;
-}
-.assignment-actions {
-  display: flex; align-items: center; gap: 6px; margin-top: 6px;
-  font-size: 12px;
-}
-.btn-link {
-  border: none; background: none; color: #185FA5; cursor: pointer;
-  font-size: 12px; padding: 0; text-decoration: none;
-}
-.btn-link:hover { text-decoration: underline; }
-.sep { color: #ccc; font-size: 11px; }
-.assignment-count {
-  margin-left: auto; font-size: 11px; color: #888;
-}
 </style>

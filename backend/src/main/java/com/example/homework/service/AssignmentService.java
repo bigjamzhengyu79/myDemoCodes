@@ -12,6 +12,11 @@ import com.example.homework.dto.QuestionDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.homework.dto.PageResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +37,32 @@ public class AssignmentService {
         return assignmentRepository.findByTeacher(teacher).stream()
                 .map(AssignmentDto.Response::from)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 目标关联作业的候选列表（分页 + 筛选）。
+     *
+     * 供 GoalModal 的作业选择器使用。原先前端一次性拿全量再自己过滤 PUBLISHED，
+     * 既把草稿也传了过去，作业变多后列表也无法操作 —— 状态过滤因此下沉到这里。
+     *
+     * status 为 null 时不过滤状态；onlyOngoing=true 时只保留未截止的作业。
+     */
+    public PageResponse<AssignmentDto.Response> listForPicker(
+            String username, String keyword, Long classGroupId,
+            Assignment.Status status, boolean onlyOngoing, Pageable pageable) {
+
+        User teacher = userRepository.findByUsername(username).orElseThrow();
+        String kw = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+        // now 传 null 表示不做截止时间过滤（查询里以 :now IS NULL 短路）
+        LocalDateTime now = onlyOngoing ? LocalDateTime.now() : null;
+
+        Page<Assignment> page = assignmentRepository.findForPicker(
+                teacher, status, kw, classGroupId, now, pageable);
+
+        List<AssignmentDto.Response> content = page.getContent().stream()
+                .map(AssignmentDto.Response::from)
+                .collect(Collectors.toList());
+        return PageResponse.of(content, page);
     }
 
     public List<AssignmentDto.Response> listForStudent(String username) {

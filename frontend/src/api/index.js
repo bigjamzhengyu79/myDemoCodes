@@ -36,7 +36,10 @@ export const assignmentApi = {
   list: () => api.get('/assignments').then(wrapResponse),
   get: (id) => api.get(`/assignments/${id}`).then(wrapResponse),
   create: (payload) => api.post('/assignments', payload).then(wrapResponse),
-  publish: (id) => api.patch(`/assignments/${id}/publish`).then(wrapResponse)
+  publish: (id) => api.patch(`/assignments/${id}/publish`).then(wrapResponse),
+  // 作业选择器专用：分页 + 关键词/班级/进行中筛选。
+  // 状态过滤在后端完成（默认只返回 PUBLISHED），前端不再自行筛选。
+  page: (params) => api.get(`/assignments/page`, { params }).then(wrapResponse)
 }
 
 export const answerApi = {
