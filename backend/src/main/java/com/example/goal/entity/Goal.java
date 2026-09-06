@@ -44,7 +44,7 @@ public class Goal {
     private Goal parent;
 
     @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("plannedStart ASC")
+    @OrderBy("sortOrder ASC, id ASC")
     private List<Goal> subGoals = new ArrayList<>();
 
     /**
@@ -99,6 +99,13 @@ public class Goal {
      */
     @Column(nullable = false)
     private Integer depth = 1;
+
+    /**
+     * 同层显式排序位次，从 0 开始，越小越靠前。
+     * 不再用 plannedStart 排序：复制模板时日期被清空，编辑日期不应改变同层顺序。
+     */
+    @Column(nullable = false)
+    private Integer sortOrder = 0;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

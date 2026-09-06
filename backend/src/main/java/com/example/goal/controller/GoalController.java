@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/goals")
@@ -83,6 +84,28 @@ public class GoalController {
         Long userId = getCurrentUserId(auth);
         String role = getCurrentRole(auth);
         goalService.deleteGoal(id, userId, role);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 重排同层目标顺序。
+     * body: { parentId: 父目标 ID（省略/为 null 表示根目标层）, orderedIds: [目标 ID 按新顺序] }
+     */
+    @PutMapping("/reorder")
+    public ResponseEntity<Void> reorder(@RequestBody Map<String, Object> body, Authentication auth) {
+        Long userId = getCurrentUserId(auth);
+        String role = getCurrentRole(auth);
+        Object rawParent = body.get("parentId");
+        Long parentId = rawParent == null ? null : Long.valueOf(rawParent.toString());
+        Object rawIds = body.get("orderedIds");
+        if (!(rawIds instanceof List<?> list)) {
+            return ResponseEntity.badRequest().build();
+        }
+        List<Long> orderedIds = list.stream()
+                .filter(Objects::nonNull)
+                .map(o -> Long.valueOf(o.toString()))
+                .toList();
+        goalService.reorderSubGoals(parentId, orderedIds, userId, role);
         return ResponseEntity.noContent().build();
     }
 

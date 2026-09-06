@@ -88,6 +88,8 @@ public class GoalDto {
         private Integer depth;
         /** 是否可被复制为模板 */
         private boolean copyable;
+        /** 同层显式排序位次，从 0 开始，越小越靠前 */
+        private Integer sortOrder;
     }
 
     @Data

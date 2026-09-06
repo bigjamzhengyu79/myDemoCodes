@@ -96,7 +96,7 @@ public class GoalService {
      */
     public List<GoalResponse> loadSubGoals(Long parentId, Integer depth, Long currentUserId) {
         List<Goal> result = (depth == null || depth <= 1)
-                ? goalRepository.findByParentIdOrderByPlannedStartAsc(parentId)
+                ? goalRepository.findByParentIdOrderBySortOrderAscIdAsc(parentId)
                 : goalRepository.findDescendantsWithinDepth(parentId, depth);
         ResponseContext ctx = buildContext(result, currentUserId);
         return result.stream().map(g -> toResponse(g, ctx)).collect(Collectors.toList());
@@ -124,6 +124,8 @@ public class GoalService {
         } else {
             goal.setDepth(1);
         }
+        // 新建目标追加到所在层末尾
+        goal.setSortOrder(nextSortOrder(goal.getParent() != null ? goal.getParent().getId() : null));
         Goal saved = goalRepository.save(goal);
         // 处理多对多学生分配
         if (req.getAssigneeIds() != null) {
@@ -155,11 +157,18 @@ public class GoalService {
                 throw new RuntimeException("无权编辑此目标");
             }
         }
+        // applyRequest 可能改变 parent，先记下原父目标以判断是否发生了跨层移动
+        Long oldParentId = goal.getParent() != null ? goal.getParent().getId() : null;
         applyRequest(goal, req);
         if (goal.getParent() != null) {
             goal.setDepth(goal.getParent().getDepth() + 1);
         } else {
             goal.setDepth(1);
+        }
+        // 换了父目标时原位次已失去意义，追加到新层末尾；同层内编辑不改动顺序
+        Long newParentId = goal.getParent() != null ? goal.getParent().getId() : null;
+        if (!Objects.equals(oldParentId, newParentId)) {
+            goal.setSortOrder(nextSortOrder(newParentId));
         }
         if (!goal.getSubGoals().isEmpty()) {
             recalcFromSubs(goal);
@@ -501,7 +510,7 @@ public class GoalService {
         }).collect(Collectors.toList()));
 
         // 递归获取子目标概览
-        List<Goal> subGoals = goalRepository.findByParentIdOrderByPlannedStartAsc(goalId);
+        List<Goal> subGoals = goalRepository.findByParentIdOrderBySortOrderAscIdAsc(goalId);
         if (!subGoals.isEmpty()) {
             overview.setSubGoals(subGoals.stream()
                     .map(sg -> getStudentOverview(sg.getId(), teacherId))
@@ -555,16 +564,17 @@ public class GoalService {
         Goal source = findOrThrow(sourceGoalId);
         User manager = findUserOrThrow(userId);
 
-        // 递归复制目标树，返回新创建的顶层目标
-        Goal newRoot = copyGoalRecursive(source, null, manager);
+        // 递归复制目标树，返回新创建的顶层目标；新根目标追加到根层末尾
+        Goal newRoot = copyGoalRecursive(source, null, manager, nextSortOrder(null));
         return toResponse(newRoot, userId);
     }
 
     /**
      * 递归复制一个目标及其所有子目标
      */
-    private Goal copyGoalRecursive(Goal source, Goal newParent, User manager) {
+    private Goal copyGoalRecursive(Goal source, Goal newParent, User manager, int sortOrder) {
         Goal target = new Goal();
+        target.setSortOrder(sortOrder);
         target.setTitle(source.getTitle());
         target.setDescription(source.getDescription());
         target.setStatus(GoalStatus.TODO);
@@ -594,11 +604,13 @@ public class GoalService {
         // 而且一旦他编辑并保存目标，replaceAssignments 会用表单里的 id 覆盖，
         // 导致关联被静默移除。与学生/班级一致，作业也由复制者自行选择。
 
-        // 递归复制子目标
+        // 递归复制子目标。source.getSubGoals() 已按 sortOrder 排序，
+        // 这里按遍历次序重新编号，保证复制品同层顺序与源目标一致。
         List<Goal> subGoals = source.getSubGoals();
         if (subGoals != null && !subGoals.isEmpty()) {
+            int order = 0;
             for (Goal sub : subGoals) {
-                copyGoalRecursive(sub, saved, manager);
+                copyGoalRecursive(sub, saved, manager, order++);
             }
         }
 
@@ -613,8 +625,11 @@ public class GoalService {
         List<Goal> subGoals = source.getSubGoals();
         if (subGoals == null || subGoals.isEmpty()) return;
 
+        // subGoals 已按 sortOrder 排序，按遍历次序重新编号，保持同层顺序与源目标一致
+        int order = 0;
         for (Goal sub : subGoals) {
             Goal target = new Goal();
+            target.setSortOrder(order++);
             target.setTitle(sub.getTitle());
             target.setDescription(sub.getDescription());
             target.setStatus(GoalStatus.TODO);
@@ -767,7 +782,59 @@ public class GoalService {
                 .collect(Collectors.toList());
     }
 
+    // ====== 同层排序 ======
+
+    /**
+     * 重排某父目标下的子目标顺序。orderedIds 为该层目标 ID 的目标顺序，
+     * 按下标依次写入 sortOrder。parentId 为 null 时重排根目标层。
+     *
+     * 未出现在 orderedIds 中的同层目标保持相对顺序、排在给定序列之后，
+     * 这样前端只提交可见的一页/一段也不会打乱其余节点。
+     */
+    @Transactional
+    public void reorderSubGoals(Long parentId, List<Long> orderedIds, Long currentUserId, String currentRole) {
+        if (orderedIds == null || orderedIds.isEmpty()) return;
+
+        List<Goal> siblings = parentId == null
+                ? goalRepository.findByParentIsNullOrderByCreatedAtDesc()
+                : goalRepository.findByParentIdOrderBySortOrderAscIdAsc(parentId);
+        Map<Long, Goal> byId = siblings.stream()
+                .collect(Collectors.toMap(Goal::getId, g -> g));
+
+        int order = 0;
+        Set<Long> handled = new HashSet<>();
+        for (Long id : orderedIds) {
+            Goal g = byId.get(id);
+            // 忽略不属于该层的 ID，避免越权改动其它父目标下的节点
+            if (g == null || !handled.add(id)) continue;
+            checkEditable(g, currentUserId, currentRole);
+            g.setSortOrder(order++);
+            goalRepository.save(g);
+        }
+        // 剩余未提交的同层节点按原有顺序接在后面，位次保持连续
+        for (Goal g : siblings) {
+            if (handled.contains(g.getId())) continue;
+            g.setSortOrder(order++);
+            goalRepository.save(g);
+        }
+    }
+
     // ====== 内部 ======
+
+    /** 与 updateGoal/deleteGoal 一致的编辑权限校验：未登录/旧 token 跳过（向后兼容）。 */
+    private void checkEditable(Goal goal, Long currentUserId, String currentRole) {
+        if (currentUserId == null || currentRole == null) return;
+        if ("ADMIN".equals(currentRole)) return;
+        if (goal.getManager() == null || !goal.getManager().getId().equals(currentUserId)) {
+            throw new RuntimeException("无权编辑此目标");
+        }
+    }
+
+    /** 返回指定父目标下的下一个排序位次（追加到末尾）。parentId 为 null 时针对根目标层。 */
+    private int nextSortOrder(Long parentId) {
+        Integer max = goalRepository.findMaxSortOrderByParentId(parentId);
+        return max == null ? 0 : max + 1;
+    }
 
     private void applyRequest(Goal goal, GoalRequest req) {
         goal.setTitle(req.getTitle());
@@ -991,6 +1058,7 @@ public class GoalService {
         r.setProgress(calcProgress(g));
         r.setOwners(g.getOwners());
         r.setDepth(g.getDepth());
+        r.setSortOrder(g.getSortOrder());
         r.setCopyable(Boolean.TRUE.equals(g.getCopyable()));
         r.setParentId(g.getParent() != null ? g.getParent().getId() : null);
         r.setCreatedAt(g.getCreatedAt());

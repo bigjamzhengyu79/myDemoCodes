@@ -33,7 +33,7 @@ public interface GoalRepository extends JpaRepository<Goal, Long> {
            "WHERE g.parent IS NULL AND g.copyable = true ORDER BY g.createdAt DESC")
     List<Goal> findCopyableParents();
 
-    List<Goal> findByParentIdOrderByPlannedStartAsc(Long parentId);
+    List<Goal> findByParentIdOrderBySortOrderAscIdAsc(Long parentId);
 
     List<Goal> findByParentIsNullAndStatusOrderByCreatedAtDesc(GoalStatus status);
 
@@ -48,6 +48,14 @@ public interface GoalRepository extends JpaRepository<Goal, Long> {
     long countByParentIsNullAndStatus(GoalStatus status);
 
     // 查询某父目标下指定深度的子孙目标
-    @Query("SELECT g FROM Goal g WHERE g.parent.id = :parentId AND g.depth <= :maxDepth")
+    // ORDER BY 必须与 findByParentIdOrderBySortOrderAscIdAsc 一致，
+    // 否则同一棵树按不同深度加载时同层顺序会不一致。
+    @Query("SELECT g FROM Goal g WHERE g.parent.id = :parentId AND g.depth <= :maxDepth " +
+           "ORDER BY g.sortOrder ASC, g.id ASC")
     List<Goal> findDescendantsWithinDepth(@Param("parentId") Long parentId, @Param("maxDepth") int maxDepth);
+
+    /** 某父目标下当前最大的 sortOrder，用于新增子目标时追加到末尾。父目标为 null 时查根目标。 */
+    @Query("SELECT MAX(g.sortOrder) FROM Goal g WHERE (:parentId IS NULL AND g.parent IS NULL) " +
+           "OR g.parent.id = :parentId")
+    Integer findMaxSortOrderByParentId(@Param("parentId") Long parentId);
 }
