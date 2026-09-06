@@ -1,6 +1,6 @@
-# Vue 3 + Spring Boot 全栈项目
+# 数学作业系统（Vue 3 + Spring Boot）
 
-这是一个现代化的全栈Web应用示例项目，展示了如何使用Vue 3、Spring Boot 3和关系型数据库构建完整的应用。
+基于 Vue 3、Spring Boot 3 与 MySQL 的数学作业管理系统，含题库、作业、学习目标与班级管理。
 
 ## 📋 项目结构
 
@@ -11,17 +11,15 @@
 │   └── src/
 │       ├── main/
 │       │   ├── java/com/example/
-│       │   │   ├── Application.java           # 启动类
-│       │   │   ├── controller/
-│       │   │   │   └── UserController.java    # REST API控制器
-│       │   │   ├── service/
-│       │   │   │   └── UserService.java       # 业务逻辑
-│       │   │   ├── repository/
-│       │   │   │   └── UserRepository.java    # 数据访问
-│       │   │   ├── entity/
-│       │   │   │   └── User.java              # 实体类
-│       │   │   └── dto/
-│       │   │       └── UserDTO.java           # 数据传输对象
+│       │   │   ├── Application.java           # 启动类（唯一 Spring Boot 入口）
+│       │   │   ├── config/                    # WebMvc 等配置
+│       │   │   ├── controller/                # User / ClassGroup / FileUpload
+│       │   │   ├── service/                   # 业务逻辑
+│       │   │   ├── repository/                # 数据访问
+│       │   │   ├── entity/                    # User / ClassGroup
+│       │   │   ├── dto/                       # 数据传输对象
+│       │   │   ├── goal/                      # 学习目标模块
+│       │   │   └── homework/                  # 作业与题库模块
 │       │   └── resources/
 │       │       └── application.properties     # 配置文件
 │       └── test/                              # 测试文件
@@ -35,8 +33,14 @@
 │       ├── router/
 │       │   └── index.js         # 路由配置
 │       └── views/
-│           ├── Home.vue         # 首页
-│           └── UserList.vue     # 用户管理页面
+│           ├── Home.vue                     # 首页
+│           ├── UserList.vue                 # 用户管理
+│           ├── ClassGroupList.vue           # 班级管理
+│           ├── GoalView.vue                 # 学习目标
+│           ├── GoalTemplateLibraryView.vue  # 目标模板库
+│           ├── GoalStudentProgressView.vue  # 学生目标进度
+│           ├── UnitTestView.vue             # 单元测试
+│           └── homework/                    # 作业与题库页面
 ├── docker-compose.yml           # Docker容器编排
 ├── .gitignore                   # Git忽略配置
 └── README.md                    # 项目说明
@@ -49,7 +53,7 @@
 - **Java**: JDK 17或更高版本
 - **Node.js**: 18或更高版本
 - **Maven**: 3.6或更高版本
-- **MySQL**: 8.0或 **PostgreSQL**: 15（可选）
+- **MySQL**: 8.0（必需，项目不支持其他数据库）
 - **Docker & Docker Compose**: 用于快速启动数据库（可选）
 
 ### 安装步骤
@@ -59,17 +63,15 @@
 **方式A: 使用Docker Compose（推荐）**
 
 ```bash
-# 启动MySQL
 docker-compose up -d mysql
-
-# 或启动PostgreSQL
-docker-compose --profile postgres up -d postgres
 ```
+
+容器名为 `aiproject-mysql`。注意 `docker-compose.yml` 建的库是 `aiproject`，
+而应用默认连接 `mathedu` —— 需要手动建库，或用 `DB_HOST` 环境变量指向 `aiproject`。
 
 **方式B: 手动安装**
 
-- MySQL: 创建数据库 `aiproject`
-- PostgreSQL: 创建数据库 `aiproject`
+- 创建数据库 `mathedu`（或通过环境变量指向已有库）
 
 #### 2. 启动后端应用
 
@@ -113,19 +115,19 @@ npm run dev
 
 ### 后端配置 (`backend/src/main/resources/application.properties`)
 
-**MySQL配置**（默认）：
+数据源支持环境变量三层回退，本地不设任何变量时使用最内层默认值：
+
 ```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/aiproject?useSSL=false&serverTimezone=UTC
-spring.datasource.username=root
-spring.datasource.password=root
+spring.datasource.url=${DB_HOST:${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/mathedu?...}}
+spring.datasource.username=${DB_USER:${SPRING_DATASOURCE_USERNAME:root}}
+spring.datasource.password=${DB_PASSWORD:${SPRING_DATASOURCE_PASSWORD:root}}
 ```
 
-**PostgreSQL配置**（取消注释即可使用）：
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/aiproject
-spring.datasource.username=postgres
-spring.datasource.password=postgres
-```
+优先级：`DB_HOST` / `DB_USER` / `DB_PASSWORD` > `SPRING_DATASOURCE_*` > 内置默认值。
+部署到 Render 等平台时通过 `SPRING_DATASOURCE_*` 注入，无需改动配置文件。
+
+> **注意**：本项目仅支持 MySQL。配置里使用了 `MySQL8Dialect` 与 `com.mysql.cj.jdbc.Driver`，
+> 并无 PostgreSQL 配置可供切换。`docker-compose.yml` 里的 PostgreSQL 服务未被后端使用。
 
 ### 前端API配置 (`frontend/vite.config.js`)
 
@@ -151,6 +153,24 @@ proxy: {
 | PUT | `/api/users/{id}` | 更新用户信息 |
 | DELETE | `/api/users/{id}` | 删除用户 |
 | GET | `/api/users/health` | 服务健康检查 |
+
+### 班级管理API
+
+基础路径 `/api/class-groups`，除标准增删改查外还包括：
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| PUT | `/api/class-groups/{id}/teacher` | 变更班主任 |
+| GET | `/api/class-groups/{id}/students` | 班级学生列表 |
+| POST | `/api/class-groups/{id}/students` | 添加学生 |
+| DELETE | `/api/class-groups/{id}/students/{studentId}` | 移除学生 |
+| GET | `/api/class-groups/by-teacher/{teacherId}` | 按教师查询 |
+| GET | `/api/class-groups/by-student/{studentId}` | 按学生查询 |
+
+### 其他
+
+- `/api/upload` —— 文件上传（上传目录 `./uploads`，单文件上限 10MB）
+- 作业、题库与学习目标模块的接口分别位于 `homework/`、`goal/` 包中，此处未逐一列出
 
 #### 示例请求
 
@@ -187,7 +207,34 @@ curl http://localhost:8080/api/users
 
 ### 数据库迁移
 
-后端配置了JPA自动建表功能（`spring.jpa.hibernate.ddl-auto=update`），修改实体类后会自动更新数据库表结构。
+后端配置了 JPA 自动建表（`spring.jpa.hibernate.ddl-auto=update`），修改实体类后会自动更新表结构。
+
+> **⚠️ 仓库根目录的 `schema.sql` 不可作为结构依据。**
+> 它只有 17 张表，而实际运行库有 26 张。差的 9 张是 Hibernate 按实体自动创建的，
+> 从未回写到 `schema.sql`。需要准确结构时，用 `tools/sync-questions/2a-export-schema.sh`
+> 从实际库导出，不要依赖 `schema.sql`。
+
+这正是 `ddl-auto=update` 的代价：结构的真实来源是实体类与运行库，而非任何 SQL 文件。
+
+### 题库同步到线上
+
+`tools/sync-questions/` 是一套把本地题库同步到线上 TiDB 的编号脚本（按 0→6 顺序执行），
+采用「暂存表 + ID 重映射」而非直接 `mysqldump` 导入 —— 因为子表外键指向的是本地 ID，
+线上重建的 `users` 表中 `teacher01` 未必拿到相同 ID，直接导入会导致 `created_by` 错位。
+
+使用要点：
+
+- 线上凭据通过 `ONLINE_HOST` / `ONLINE_USER` / `ONLINE_PASS` 环境变量传入，切勿硬编码
+- `4-load-online.sh` 默认为演练模式，跑完自动 `ROLLBACK`；确认无误后再用 `MODE=commit` 写入
+- TiDB 端口为 `4000`（非 3306）且强制 TLS；不支持 MySQL 8.0 专有的 `utf8mb4_0900_ai_ci`
+  排序规则，导出脚本会自动替换为 `utf8mb4_general_ci`
+
+详见 [tools/sync-questions/README.md](tools/sync-questions/README.md)。
+
+> **⚠️ 认证目前为明文口令比对。** `AuthService.login()` 使用
+> `Objects.equals(明文, user.getPassword())` 直接比对，注入的 `passwordEncoder` 从未被调用，
+> 数据库中存储的也是明文。因此向 `users` 表写入 bcrypt 哈希反而会导致登录失败 ——
+> 种子数据、数据同步、测试夹具中的口令都必须写明文。这是已知的安全债，上线前必须修复。
 
 ## 📦 构建和部署
 
@@ -198,6 +245,11 @@ cd backend
 mvn clean package
 # 生成文件: target/springboot-app-1.0.0.jar
 ```
+
+**关于插件版本固定**：`pom.xml` 中的 `spring-boot-maven-plugin`（3.2.0）与
+`maven-compiler-plugin`（3.11.0）均通过 properties 显式声明版本。未固定版本的插件会让 Maven
+在每次导入时联网查询 Central 的 `maven-metadata.xml` 以解析「最新版」，既拖慢 IDE 的项目导入
+（Java 语言服务器配置项目时尤其明显），也使构建结果不可复现。升级插件时改 properties 即可。
 
 ### 构建前端
 
@@ -266,11 +318,10 @@ A:
 2. 检查前端是否在 `localhost:5173` 运行
 3. 检查CORS配置是否正确
 
-### Q: 如何使用PostgreSQL替代MySQL？
-A: 
-1. 在 `application.properties` 中取消PostgreSQL配置的注释
-2. 注释MySQL配置
-3. 重启后端应用
+### Q: 可以使用PostgreSQL替代MySQL吗？
+A: 目前不能。配置中固定使用 `MySQL8Dialect` 与 MySQL 驱动，实体与 SQL 也按 MySQL 编写。
+`docker-compose.yml` 里保留的 PostgreSQL 服务位于 `postgres` profile 之下，默认不启动，
+后端也从未连接它。如需支持需另行改造。
 
 ## 🤝 贡献
 
