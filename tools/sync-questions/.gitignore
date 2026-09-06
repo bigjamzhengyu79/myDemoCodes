@@ -1,0 +1,18 @@
+# 导出的数据文件不入库：含全部题目内容与内嵌 base64 图片（约 8.5MB）
+local-questions-dump.sql
+local-users-map.sql
+
+# 线上备份含生产数据，更不能入库
+online-backup-*.sql
+
+# 运行时临时文件
+.merge-run.sql
+*.tmp
+
+# 线上凭据
+.env.online
+
+# 注意：local-schema.sql 是有意入库的。
+# 它虽是 2a-export-schema.sh 的生成物，但仓库根目录的 schema.sql 只有 17 张表，
+# 与实际库的 26 张不符（差额由 Hibernate ddl-auto=update 自动创建，从未回写），
+# 这份导出因此是唯一可信的结构记录。纯 DDL、不含数据与凭据。
